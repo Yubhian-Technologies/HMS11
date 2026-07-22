@@ -7,6 +7,7 @@ import { getSession } from "@/lib/auth/require-role";
 import { listBranches } from "@/features/hospitals/services/read";
 import { listBeds, listRooms, listWards } from "@/features/facilities/services/read";
 import { CreateWardDialog } from "@/features/facilities/components/CreateWardDialog";
+import { EditWardDialog } from "@/features/facilities/components/EditWardDialog";
 import { WardStatusToggle } from "@/features/facilities/components/WardStatusToggle";
 import { CreateRoomDialog } from "@/features/facilities/components/CreateRoomDialog";
 import { RoomStatusToggle } from "@/features/facilities/components/RoomStatusToggle";
@@ -46,7 +47,11 @@ export default async function RoomsBedsPage({
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold text-foreground">Rooms &amp; Beds</h1>
         <div className="flex items-center gap-2">
-          <BranchSwitcher branches={branches} selectedBranchId={branch.id} basePath="/admin/rooms-beds" />
+          <BranchSwitcher
+            branches={branches.map((b) => ({ id: b.id, name: b.name }))}
+            selectedBranchId={branch.id}
+            basePath="/admin/rooms-beds"
+          />
           <CreateWardDialog hospitalId={hospitalId} branchId={branch.id} />
         </div>
       </div>
@@ -68,7 +73,14 @@ export default async function RoomsBedsPage({
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                <Badge variant={ward.status === "active" ? "default" : "destructive"}>{ward.status}</Badge>
+                <Badge variant={ward.status === "active" ? "success" : "destructive"} className="w-20 justify-center">{ward.status}</Badge>
+                <EditWardDialog
+                  hospitalId={hospitalId}
+                  wardId={ward.id}
+                  name={ward.name}
+                  building={ward.building}
+                  floor={ward.floor}
+                />
                 <WardStatusToggle hospitalId={hospitalId} wardId={ward.id} status={ward.status} />
                 <CreateRoomDialog hospitalId={hospitalId} branchId={branch.id} wardId={ward.id} />
               </div>
@@ -83,7 +95,7 @@ export default async function RoomsBedsPage({
                     <div className="flex items-center justify-between">
                       <p className="text-sm font-medium text-foreground">Room {room.roomNumber}</p>
                       <div className="flex items-center gap-2">
-                        <Badge variant={room.status === "active" ? "default" : "destructive"}>
+                        <Badge variant={room.status === "active" ? "success" : "destructive"} className="w-20 justify-center">
                           {room.status}
                         </Badge>
                         <RoomStatusToggle hospitalId={hospitalId} roomId={room.id} status={room.status} />

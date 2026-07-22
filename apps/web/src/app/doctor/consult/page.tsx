@@ -7,7 +7,6 @@ import { getPatientProfile } from "@/features/patients/services/read";
 import { getVitalsForAppointment } from "@/features/reception/services/read";
 import { getPatientHistory } from "@/features/consultations/services/read";
 import { listLabTests } from "@/features/lab-tests/services/read";
-import { listAvailableBeds } from "@/features/facilities/services/read";
 import { listDepartments } from "@/features/departments/services/read";
 import { listStaffByRole } from "@/features/staff/services/read";
 import { listHealthUpdates, listMedicineLogs } from "@/features/recovery/services/read";
@@ -30,13 +29,12 @@ export default async function ConsultPage({
     return <p className="text-sm text-muted-foreground">Appointment not found.</p>;
   }
 
-  const [patient, vitals, history, labTests, beds, departments, doctors, healthUpdates, medicineLogs] =
+  const [patient, vitals, history, labTests, departments, doctors, healthUpdates, medicineLogs] =
     await Promise.all([
       getPatientProfile(appointment.patientId),
       getVitalsForAppointment(appointmentId),
       getPatientHistory(appointment.patientId, hospitalId),
       listLabTests(branchId),
-      listAvailableBeds(branchId),
       listDepartments(hospitalId),
       listStaffByRole(hospitalId, "doctor"),
       listHealthUpdates(appointment.patientId),
@@ -123,7 +121,6 @@ export default async function ConsultPage({
         branchId={branchId}
         appointmentId={appointmentId}
         labTests={labTests.map((t) => ({ id: t.id, name: t.name, price: t.price }))}
-        beds={beds.map((b) => ({ id: b.id, bedNumber: b.bedNumber }))}
         departments={departments.map((d) => ({ id: d.id, name: d.name }))}
         doctors={doctors.filter((d) => d.id !== doctorId).map((d) => ({ id: d.id, name: d.name }))}
       />

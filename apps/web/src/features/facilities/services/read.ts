@@ -42,3 +42,25 @@ export async function listAvailableBeds(branchId: string): Promise<BedRecord[]> 
     .get();
   return snap.docs.map((doc) => ({ id: doc.id, ...(doc.data() as Bed) }));
 }
+
+/** Doctor's Room Details module — resolves a bed to its room + ward for display. */
+export async function getBedLocation(
+  bedId: string,
+): Promise<{ bed: BedRecord; room: RoomRecord; ward: WardRecord } | null> {
+  const db = getAdminDb();
+  const bedDoc = await db.collection("beds").doc(bedId).get();
+  if (!bedDoc.exists) return null;
+  const bed = { id: bedDoc.id, ...(bedDoc.data() as Bed) };
+
+  const [roomDoc, wardDoc] = await Promise.all([
+    db.collection("rooms").doc(bed.roomId).get(),
+    db.collection("wards").doc(bed.wardId).get(),
+  ]);
+  if (!roomDoc.exists || !wardDoc.exists) return null;
+
+  return {
+    bed,
+    room: { id: roomDoc.id, ...(roomDoc.data() as Room) },
+    ward: { id: wardDoc.id, ...(wardDoc.data() as Ward) },
+  };
+}

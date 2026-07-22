@@ -28,7 +28,7 @@ export default async function SuperAdminPage() {
                 <CardHeader>
                   <div className="flex items-center justify-between gap-2">
                     <CardTitle className="text-base">{hospital.name}</CardTitle>
-                    <Badge variant={hospital.status === "active" ? "default" : "destructive"}>
+                    <Badge variant={hospital.status === "active" ? "success" : "destructive"} className="w-20 shrink-0 justify-center">
                       {hospital.status}
                     </Badge>
                   </div>

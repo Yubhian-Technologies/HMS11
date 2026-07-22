@@ -7,6 +7,7 @@ import { listBranches } from "@/features/hospitals/services/read";
 import { listMedicineInventory } from "@/features/medicine-inventory/services/read";
 import { MedicineInventoryFormDialog } from "@/features/medicine-inventory/components/MedicineInventoryFormDialog";
 import { MedicineInventoryStatusToggle } from "@/features/medicine-inventory/components/MedicineInventoryStatusToggle";
+import { getExpiryStatus } from "@/features/medicine-inventory/expiry";
 
 export default async function MedicineInventoryPage({
   searchParams,
@@ -33,7 +34,7 @@ export default async function MedicineInventoryPage({
         <h1 className="text-xl font-semibold text-foreground">Medicine Inventory</h1>
         <div className="flex items-center gap-2">
           <BranchSwitcher
-            branches={branches}
+            branches={branches.map((b) => ({ id: b.id, name: b.name }))}
             selectedBranchId={branch.id}
             basePath="/admin/medicine-inventory"
           />
@@ -51,6 +52,7 @@ export default async function MedicineInventoryPage({
           ) : (
             items.map((item) => {
               const lowStock = item.quantityInStock <= item.reorderLevel;
+              const expiryStatus = getExpiryStatus(item.expiryDate);
               return (
                 <div
                   key={item.id}
@@ -58,8 +60,9 @@ export default async function MedicineInventoryPage({
                 >
                   <div>
                     <p className="font-medium text-foreground">{item.name}</p>
-                    <p className="text-muted-foreground">
+                    <p className={expiryStatus !== "ok" ? "font-medium text-destructive" : "text-muted-foreground"}>
                       Batch {item.batchNumber} · exp {item.expiryDate} · unit price {item.unitPrice}
+                      {expiryStatus === "expired" ? " — expired" : expiryStatus === "nearExpiry" ? " — near expiry" : ""}
                     </p>
                     <p className={lowStock ? "font-medium text-destructive" : "text-muted-foreground"}>
                       {item.quantityInStock} in stock (reorder at {item.reorderLevel})
@@ -67,7 +70,12 @@ export default async function MedicineInventoryPage({
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Badge variant={item.status === "active" ? "default" : "destructive"}>{item.status}</Badge>
+                    {expiryStatus !== "ok" ? (
+                      <Badge variant="destructive" className="w-24 justify-center">
+                        {expiryStatus === "expired" ? "Expired" : "Near expiry"}
+                      </Badge>
+                    ) : null}
+                    <Badge variant={item.status === "active" ? "success" : "destructive"} className="w-20 justify-center">{item.status}</Badge>
                     <MedicineInventoryFormDialog
                       hospitalId={hospitalId}
                       branchId={branch.id}

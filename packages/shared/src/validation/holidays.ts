@@ -22,3 +22,16 @@ export const SetHolidayStatusRequest = z
   })
   .strict();
 export type SetHolidayStatusRequest = z.infer<typeof SetHolidayStatusRequest>;
+
+/**
+ * admin only, own hospital. The one true hard-delete in the app — holidays
+ * are a non-clinical scheduling record, so this is a deliberate, narrow
+ * exception to NFR-7.1 rather than the general pattern (see AuditLog).
+ */
+export const DeleteHolidayRequest = z
+  .object({
+    hospitalId: z.string().min(1),
+    holidayId: z.string().min(1),
+  })
+  .strict();
+export type DeleteHolidayRequest = z.infer<typeof DeleteHolidayRequest>;

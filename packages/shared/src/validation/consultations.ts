@@ -26,7 +26,9 @@ export const SubmitConsultationRequest = z
     clinicalNotes: z.string().default(""),
     prescription: z.array(PrescriptionItemSchema).nullish(),
     labTestIds: z.array(z.string().min(1)).nullish(),
-    admission: z.object({ bedId: z.string().min(1) }).strict().nullish(),
+    // Office assigns the actual bed afterwards (assignBedToAdmission) — the
+    // doctor only flags that a room is needed, no bed picker at this step.
+    admissionRequested: z.boolean().optional(),
     followUp: z.object({ scheduledDate: z.string().min(1) }).strict().nullish(),
     certificate: z
       .object({

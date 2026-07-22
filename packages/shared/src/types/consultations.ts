@@ -30,14 +30,27 @@ export interface Prescription extends BaseDoc {
   items: PrescriptionItem[];
 }
 
-/** labOrders/{id} — Module 10 owns the pipeline status transitions from here on. */
+/**
+ * labOrders/{id} — Module 10 owns the pipeline status transitions from here
+ * on. `consultationId` is null for a standalone order assigned by the doctor
+ * outside the consult flow (Doctor Labs module); such orders start at
+ * "pendingPayment" and only enter the normal pipeline once Office marks them
+ * paid (markLabOrderPaid flips "pendingPayment" -> "pending").
+ */
 export interface LabOrder extends BaseDoc {
-  consultationId: string;
+  consultationId: string | null;
   patientId: string;
   doctorId: string;
   testId: string;
   testName: string;
-  status: "pending" | "sampleCollected" | "processing" | "completed" | "verified" | "reportUploaded";
+  status:
+    | "pendingPayment"
+    | "pending"
+    | "sampleCollected"
+    | "processing"
+    | "completed"
+    | "verified"
+    | "reportUploaded";
 }
 
 export interface DischargeSummary {
@@ -49,16 +62,22 @@ export interface DischargeSummary {
   authoredAt: Timestamp;
 }
 
-/** admissions/{id} — Module 12 owns discharge; this module only opens one. */
+/**
+ * admissions/{id} — Module 12 owns discharge; this module only opens one.
+ * `bedId`/`admittedAt` are null while the request is still
+ * "pendingBedAssignment": the doctor only flags that a patient needs a
+ * room; Office (assignBedToAdmission) checks bed availability and assigns
+ * the actual bed, which is what advances status to "admitted".
+ */
 export interface Admission extends BaseDoc {
   consultationId: string;
   patientId: string;
   doctorId: string;
-  bedId: string;
-  admittedAt: Timestamp;
+  bedId: string | null;
+  admittedAt: Timestamp | null;
   dischargedAt: Timestamp | null;
   dischargeSummary: DischargeSummary | null;
-  status: "admitted" | "discharged";
+  status: "pendingBedAssignment" | "admitted" | "discharged";
 }
 
 /** followUps/{id} — becomes a real appointment once the patient books it (FR-9.6). */

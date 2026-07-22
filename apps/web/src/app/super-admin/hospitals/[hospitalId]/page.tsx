@@ -34,7 +34,7 @@ export default async function HospitalDetailPage({
           <div className="flex items-center justify-between gap-2">
             <CardTitle className="text-lg">{hospital.name}</CardTitle>
             <div className="flex items-center gap-2">
-              <Badge variant={hospital.status === "active" ? "default" : "destructive"}>
+              <Badge variant={hospital.status === "active" ? "success" : "destructive"} className="w-20 justify-center">
                 {hospital.status}
               </Badge>
               <HospitalStatusToggle hospitalId={hospital.id} status={hospital.status} />
@@ -99,7 +99,7 @@ export default async function HospitalDetailPage({
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                <Badge variant={branch.status === "active" ? "default" : "destructive"}>
+                <Badge variant={branch.status === "active" ? "success" : "destructive"} className="w-20 justify-center">
                   {branch.status}
                 </Badge>
                 <BranchStatusToggle hospitalId={hospital.id} branchId={branch.id} status={branch.status} />

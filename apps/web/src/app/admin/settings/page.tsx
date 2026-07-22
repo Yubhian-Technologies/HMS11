@@ -7,6 +7,7 @@ import { listBranches } from "@/features/hospitals/services/read";
 import { EditTimingsDialog } from "@/features/hospitals/components/EditTimingsDialog";
 import { CreateHolidayDialog } from "@/features/holidays/components/CreateHolidayDialog";
 import { HolidayStatusToggle } from "@/features/holidays/components/HolidayStatusToggle";
+import { DeleteHolidayButton } from "@/features/holidays/components/DeleteHolidayButton";
 import { listHolidays } from "@/features/holidays/services/read";
 
 const WEEKDAY_LABEL: Record<string, string> = {
@@ -42,7 +43,11 @@ export default async function SettingsPage({
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold text-foreground">Settings</h1>
-        <BranchSwitcher branches={branches} selectedBranchId={branch.id} basePath="/admin/settings" />
+        <BranchSwitcher
+          branches={branches.map((b) => ({ id: b.id, name: b.name }))}
+          selectedBranchId={branch.id}
+          basePath="/admin/settings"
+        />
       </div>
 
       <Card>
@@ -84,10 +89,11 @@ export default async function SettingsPage({
                   <p className="text-muted-foreground">{holiday.reason}</p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Badge variant={holiday.status === "active" ? "default" : "destructive"}>
+                  <Badge variant={holiday.status === "active" ? "success" : "destructive"} className="w-20 justify-center">
                     {holiday.status}
                   </Badge>
                   <HolidayStatusToggle hospitalId={hospitalId} holidayId={holiday.id} status={holiday.status} />
+                  <DeleteHolidayButton hospitalId={hospitalId} holidayId={holiday.id} />
                 </div>
               </div>
             ))

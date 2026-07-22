@@ -21,16 +21,26 @@ import { createManualSlot } from "../services/scheduling";
 export function CreateManualSlotDialog({
   hospitalId,
   branchId,
+  departments,
   doctors,
 }: {
   hospitalId: string;
   branchId: string;
-  doctors: { id: string; name: string }[];
+  departments: { id: string; name: string }[];
+  doctors: { id: string; name: string; departmentId: string }[];
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [departmentId, setDepartmentId] = useState("");
   const [form, setForm] = useState({ doctorId: "", date: "", startTime: "", endTime: "" });
   const [submitting, setSubmitting] = useState(false);
+
+  const doctorsInDepartment = departmentId ? doctors.filter((d) => d.departmentId === departmentId) : [];
+
+  function selectDepartment(nextDepartmentId: string) {
+    setDepartmentId(nextDepartmentId);
+    setForm((f) => ({ ...f, doctorId: "" }));
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -38,6 +48,7 @@ export function CreateManualSlotDialog({
     try {
       await createManualSlot({ hospitalId, branchId, ...form });
       toast.success("One-off slot added.");
+      setDepartmentId("");
       setForm({ doctorId: "", date: "", startTime: "", endTime: "" });
       setOpen(false);
       router.refresh();
@@ -59,16 +70,32 @@ export function CreateManualSlotDialog({
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid gap-1.5">
+              <Label htmlFor="manual-department">Department</Label>
+              <Select value={departmentId} onValueChange={(v) => selectDepartment(v ?? "")}>
+                <SelectTrigger id="manual-department" className="w-full">
+                  <SelectValue placeholder="Select a department" />
+                </SelectTrigger>
+                <SelectContent>
+                  {departments.map((dept) => (
+                    <SelectItem key={dept.id} value={dept.id}>
+                      {dept.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-1.5">
               <Label htmlFor="manual-doctor">Doctor</Label>
               <Select
                 value={form.doctorId}
                 onValueChange={(v) => setForm((f) => ({ ...f, doctorId: v ?? "" }))}
+                disabled={!departmentId}
               >
                 <SelectTrigger id="manual-doctor" className="w-full">
-                  <SelectValue placeholder="Select a doctor" />
+                  <SelectValue placeholder={departmentId ? "Select a doctor" : "Select a department first"} />
                 </SelectTrigger>
                 <SelectContent>
-                  {doctors.map((doc) => (
+                  {doctorsInDepartment.map((doc) => (
                     <SelectItem key={doc.id} value={doc.id}>
                       {doc.name}
                     </SelectItem>

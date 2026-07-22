@@ -11,6 +11,16 @@ import { cn } from "@/lib/utils";
 export function DashboardShell({ role, children }: { role: Role; children: ReactNode }) {
   const pathname = usePathname();
 
+  // Pick the single most specific href match so a sub-page (e.g. /admin/staff)
+  // doesn't also leave the role's root item (e.g. Dashboard → /admin) lit up —
+  // "/admin/staff" starts with "/admin/" too, so per-item prefix checks alone
+  // would elevate both at once.
+  const activeHref = NAV_ITEMS[role]
+    .map((item) => item.href)
+    .filter((href): href is string => Boolean(href))
+    .filter((href) => pathname === href || pathname.startsWith(`${href}/`))
+    .sort((a, b) => b.length - a.length)[0];
+
   return (
     <div className="flex min-h-screen bg-background">
       <aside className="flex w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar">
@@ -25,7 +35,7 @@ export function DashboardShell({ role, children }: { role: Role; children: React
         </div>
         <nav className="flex flex-1 flex-col gap-0.5 px-3">
           {NAV_ITEMS[role].map((item) => {
-            const active = item.href && (pathname === item.href || pathname.startsWith(`${item.href}/`));
+            const active = Boolean(item.href) && item.href === activeHref;
             return item.href ? (
               <Link
                 key={item.label}

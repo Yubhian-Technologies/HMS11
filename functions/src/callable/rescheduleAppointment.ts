@@ -3,7 +3,8 @@ import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { RescheduleAppointmentRequest } from "@hms/shared";
 import { requireCallerRole } from "../services/callable-auth";
 import { assertOwnHospital } from "../services/scope-checks";
-import { freeSlotAndPromoteWaitlist } from "../services/waitlist";
+import { freeSlotAndPromoteWaitlist, type WaitlistPromotion } from "../services/waitlist";
+import { sendNotification } from "../notifications/sendNotification";
 
 /**
  * FR-6.3. office only, own branch. Moves an appointment onto a different
@@ -42,16 +43,16 @@ export const rescheduleAppointment = onCall(async (request) => {
     throw new HttpsError("failed-precondition", "The new slot is not available.");
   }
 
-  await db.runTransaction(async (tx) => {
+  const promotion: WaitlistPromotion | null = await db.runTransaction(async (tx) => {
     const now = FieldValue.serverTimestamp();
 
-    if (appt.slotId) {
-      await freeSlotAndPromoteWaitlist(db, tx, {
-        slotId: appt.slotId as string,
-        doctorId: appt.doctorId as string,
-        date: appt.date as string,
-      });
-    }
+    const result = appt.slotId
+      ? await freeSlotAndPromoteWaitlist(db, tx, {
+          slotId: appt.slotId as string,
+          doctorId: appt.doctorId as string,
+          date: appt.date as string,
+        })
+      : null;
 
     tx.update(db.collection("doctorSlots").doc(newSlotId), { status: "booked", updatedAt: now });
     tx.update(apptRef, {
@@ -74,7 +75,28 @@ export const rescheduleAppointment = onCall(async (request) => {
       after: { slotId: newSlotId, date: newSlot?.date, startTime: newSlot?.startTime },
       createdAt: now,
     });
+
+    return result;
   });
+
+  await sendNotification({
+    userId: appt.patientId as string,
+    type: "appointmentConfirmation",
+    title: "Appointment rescheduled",
+    body: `Your appointment is now confirmed for ${newSlot?.date} at ${newSlot?.startTime}.`,
+    hospitalId,
+    relatedEntityId: appointmentId,
+  });
+  if (promotion) {
+    await sendNotification({
+      userId: promotion.patientId,
+      type: "appointmentConfirmation",
+      title: "Appointment confirmed",
+      body: `A slot opened up — your appointment on ${promotion.date} at ${promotion.startTime ?? "your assigned time"} is now confirmed.`,
+      hospitalId,
+      relatedEntityId: promotion.appointmentId,
+    });
+  }
 
   return { success: true };
 });

@@ -40,6 +40,21 @@ export async function listBranchAppointmentsForDate(
   return snap.docs.map((doc) => ({ id: doc.id, ...(doc.data() as Appointment) }));
 }
 
+/**
+ * Same data, spanning the rolling 3-day window instead of a single date —
+ * reuses the already-indexed per-date query (branchId + date + startTime)
+ * so no new composite index is needed. Office views (Appointments, Daily
+ * Schedule, Waiting List) all need this: a patient can book any day in the
+ * window, not just today.
+ */
+export async function listBranchAppointmentsForDates(
+  branchId: string,
+  dates: string[],
+): Promise<AppointmentRecord[]> {
+  const perDate = await Promise.all(dates.map((date) => listBranchAppointmentsForDate(branchId, date)));
+  return perDate.flat();
+}
+
 /** Doctor's live queue — both normal and emergency appointments reach "checkedIn" via the same Reception flow. */
 export async function listDoctorQueue(doctorId: string, date: string): Promise<AppointmentRecord[]> {
   const snap = await getAdminDb()

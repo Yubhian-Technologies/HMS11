@@ -14,7 +14,7 @@ ui-debug.log
 
 # Build
 dist/
-lib/
+functions/lib/
 build/
 .deploy/
 functions/vendor/
@@ -24,7 +24,7 @@ functions/vendor/
 .env.local
 .env.*.local
 functions/.env
-functions/.env.*
+functions/.env.*.local
 
 # Misc
 .DS_Store

@@ -35,20 +35,6 @@ export const submitConsultation = onCall(async (request) => {
     throw new HttpsError("failed-precondition", "The patient must be checked in first.");
   }
 
-  // Reads that inform the writes below — all resolved before the
-  // transaction opens, per the read-before-write rule for Firestore
-  // transactions and to keep the transaction itself write-only and fast.
-  let bedSnap = null;
-  if (input.admission) {
-    bedSnap = await db.collection("beds").doc(input.admission.bedId).get();
-    if (!bedSnap.exists || bedSnap.data()?.hospitalId !== input.hospitalId) {
-      throw new HttpsError("not-found", "Bed not found.");
-    }
-    if (bedSnap.data()?.status !== "available") {
-      throw new HttpsError("failed-precondition", "This bed is not available.");
-    }
-  }
-
   const labTests = input.labTestIds
     ? await Promise.all(
         input.labTestIds.map(async (testId) => {
@@ -71,7 +57,7 @@ export const submitConsultation = onCall(async (request) => {
   const consultationRef = db.collection("consultations").doc();
   const prescriptionRef = input.prescription?.length ? db.collection("prescriptions").doc() : null;
   const labOrderRefs = labTests.map(() => db.collection("labOrders").doc());
-  const admissionRef = input.admission ? db.collection("admissions").doc() : null;
+  const admissionRef = input.admissionRequested ? db.collection("admissions").doc() : null;
   const followUpRef = input.followUp ? db.collection("followUps").doc() : null;
   const certificateRef = input.certificate ? db.collection("medicalCertificates").doc() : null;
   const referralRef = input.referral ? db.collection("referrals").doc() : null;
@@ -119,19 +105,18 @@ export const submitConsultation = onCall(async (request) => {
       });
     });
 
-    if (admissionRef && input.admission) {
+    if (admissionRef && input.admissionRequested) {
       tx.set(admissionRef, {
         ...base,
         consultationId: consultationRef.id,
         patientId: appt.patientId,
         doctorId: caller.uid,
-        bedId: input.admission.bedId,
-        admittedAt: now,
+        bedId: null,
+        admittedAt: null,
         dischargedAt: null,
         dischargeSummary: null,
-        status: "admitted",
+        status: "pendingBedAssignment",
       });
-      tx.update(db.collection("beds").doc(input.admission.bedId), { status: "occupied", updatedAt: now });
     }
 
     if (followUpRef && input.followUp) {

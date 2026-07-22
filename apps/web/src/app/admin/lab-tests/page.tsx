@@ -32,7 +32,11 @@ export default async function LabTestsPage({
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold text-foreground">Lab Test Master</h1>
         <div className="flex items-center gap-2">
-          <BranchSwitcher branches={branches} selectedBranchId={branch.id} basePath="/admin/lab-tests" />
+          <BranchSwitcher
+            branches={branches.map((b) => ({ id: b.id, name: b.name }))}
+            selectedBranchId={branch.id}
+            basePath="/admin/lab-tests"
+          />
           <LabTestFormDialog hospitalId={hospitalId} branchId={branch.id} />
         </div>
       </div>
@@ -57,7 +61,7 @@ export default async function LabTestsPage({
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Badge variant={test.status === "active" ? "default" : "destructive"}>{test.status}</Badge>
+                  <Badge variant={test.status === "active" ? "success" : "destructive"} className="w-20 justify-center">{test.status}</Badge>
                   <LabTestFormDialog
                     hospitalId={hospitalId}
                     branchId={branch.id}

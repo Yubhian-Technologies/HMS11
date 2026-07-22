@@ -47,9 +47,28 @@ export default async function DoctorQueuePage() {
                     <p className="text-muted-foreground">Waiting on vitals from Reception…</p>
                   )}
                 </div>
-                <Button size="sm" disabled={!vitals} render={<Link href={`/doctor/consult?appointmentId=${appt.id}`} />}>
-                  {vitals ? "Start Consultation" : "Awaiting vitals"}
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    render={<Link href={`/doctor/patient-details?appointmentId=${appt.id}`} />}
+                  >
+                    Patient Details
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    render={<Link href={`/doctor/prescriptions?appointmentId=${appt.id}`} />}
+                  >
+                    Prescriptions
+                  </Button>
+                  <Button size="sm" render={<Link href={`/doctor/labs?appointmentId=${appt.id}`} />}>
+                    Labs
+                  </Button>
+                  <Button size="sm" disabled={!vitals} render={<Link href={`/doctor/consult?appointmentId=${appt.id}`} />}>
+                    {vitals ? "Start Consultation" : "Awaiting vitals"}
+                  </Button>
+                </div>
               </div>
             ))
           )}

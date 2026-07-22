@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { WEEKDAYS, type Weekday } from "@hms/shared";
+import { AVAILABILITY_WINDOWS, WEEKDAYS, type Weekday } from "@hms/shared";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -41,8 +41,8 @@ export function CreateTemplateDialog({
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [weekday, setWeekday] = useState<Weekday>("monday");
-  const [startTime, setStartTime] = useState("09:00");
-  const [endTime, setEndTime] = useState("17:00");
+  const [morningSlots, setMorningSlots] = useState("8");
+  const [afternoonSlots, setAfternoonSlots] = useState("8");
   const [slotDurationMinutes, setSlotDurationMinutes] = useState("15");
   const [submitting, setSubmitting] = useState(false);
 
@@ -55,8 +55,8 @@ export function CreateTemplateDialog({
         branchId,
         doctorId,
         weekday,
-        startTime,
-        endTime,
+        morningSlots: Number(morningSlots),
+        afternoonSlots: Number(afternoonSlots),
         slotDurationMinutes: Number(slotDurationMinutes),
         breaks: [],
       });
@@ -100,23 +100,35 @@ export function CreateTemplateDialog({
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-1.5">
-                <Label htmlFor="tpl-start">Start time</Label>
+                <Label htmlFor="tpl-morning">
+                  Morning slots
+                  <span className="ml-1 font-normal text-muted-foreground">
+                    ({AVAILABILITY_WINDOWS.morning.start}–{AVAILABILITY_WINDOWS.morning.end})
+                  </span>
+                </Label>
                 <Input
-                  id="tpl-start"
-                  type="time"
+                  id="tpl-morning"
+                  type="number"
+                  min="0"
                   required
-                  value={startTime}
-                  onChange={(e) => setStartTime(e.target.value)}
+                  value={morningSlots}
+                  onChange={(e) => setMorningSlots(e.target.value)}
                 />
               </div>
               <div className="grid gap-1.5">
-                <Label htmlFor="tpl-end">End time</Label>
+                <Label htmlFor="tpl-afternoon">
+                  Afternoon slots
+                  <span className="ml-1 font-normal text-muted-foreground">
+                    ({AVAILABILITY_WINDOWS.afternoon.start}–{AVAILABILITY_WINDOWS.afternoon.end})
+                  </span>
+                </Label>
                 <Input
-                  id="tpl-end"
-                  type="time"
+                  id="tpl-afternoon"
+                  type="number"
+                  min="0"
                   required
-                  value={endTime}
-                  onChange={(e) => setEndTime(e.target.value)}
+                  value={afternoonSlots}
+                  onChange={(e) => setAfternoonSlots(e.target.value)}
                 />
               </div>
             </div>

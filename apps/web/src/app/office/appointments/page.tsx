@@ -5,21 +5,28 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { getSession } from "@/lib/auth/require-role";
-import { todayIsoClient } from "@/lib/rolling-window";
-import { listBranchAppointmentsForDate } from "@/features/appointments/services/read";
+import { rollingWindowDates } from "@/lib/rolling-window";
+import { listBranchAppointmentsForDates } from "@/features/appointments/services/read";
 import { listWalkInPatients } from "@/features/patients/services/read";
 import { listStaffByRole, listDoctorProfiles } from "@/features/staff/services/read";
 import { AppointmentActionButtons } from "@/features/appointments/components/AppointmentActionButtons";
 import { CreateEmergencyDialog } from "@/features/appointments/components/CreateEmergencyDialog";
 
-export default async function OfficeAppointmentsPage() {
+export default async function OfficeAppointmentsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string }>;
+}) {
   const session = await getSession();
   if (!session?.hospitalId || !session.branchId) redirect("/login");
   const { hospitalId, branchId } = session;
 
-  const today = todayIsoClient();
+  const { tab } = await searchParams;
+  const defaultTab = tab === "emergency" || tab === "approved" ? tab : "pending";
+
+  const dates = rollingWindowDates();
   const [appointments, patients, doctors, doctorProfiles] = await Promise.all([
-    listBranchAppointmentsForDate(branchId, today),
+    listBranchAppointmentsForDates(branchId, dates),
     listWalkInPatients(hospitalId, branchId),
     listStaffByRole(hospitalId, "doctor"),
     listDoctorProfiles(hospitalId),
@@ -40,7 +47,7 @@ export default async function OfficeAppointmentsPage() {
             {appt.patientName} {appt.type === "emergency" ? <Badge variant="destructive">EMERGENCY</Badge> : null}
           </p>
           <p className="text-muted-foreground">
-            {doctorProfilesById.get(appt.doctorId) ?? appt.doctorId} · {appt.startTime ?? "—"}
+            {doctorProfilesById.get(appt.doctorId) ?? "Unknown doctor"} · {appt.date} · {appt.startTime ?? "—"}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -63,7 +70,7 @@ export default async function OfficeAppointmentsPage() {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-foreground">Appointments — Today</h1>
+        <h1 className="text-xl font-semibold text-foreground">Appointments — Next 3 Days</h1>
         <CreateEmergencyDialog
           hospitalId={hospitalId}
           branchId={branchId}
@@ -76,7 +83,7 @@ export default async function OfficeAppointmentsPage() {
         />
       </div>
 
-      <Tabs defaultValue="pending">
+      <Tabs key={defaultTab} defaultValue={defaultTab}>
         <TabsList>
           <TabsTrigger value="pending">Pending ({pending.length})</TabsTrigger>
           <TabsTrigger value="approved">Approved ({approved.length})</TabsTrigger>

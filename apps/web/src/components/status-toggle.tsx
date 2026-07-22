@@ -47,7 +47,9 @@ export function StatusToggle({
 
   return (
     <AlertDialog open={open} onOpenChange={setOpen}>
-      <AlertDialogTrigger render={<Button variant={status === "active" ? "destructive" : "default"} size="sm" />}>
+      <AlertDialogTrigger
+        render={<Button variant={status === "active" ? "destructive" : "default"} size="sm" className="w-20 justify-center" />}
+      >
         {status === "active" ? "Disable" : "Enable"}
       </AlertDialogTrigger>
       <AlertDialogContent>
