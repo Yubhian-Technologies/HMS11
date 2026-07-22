@@ -1,0 +1,38 @@
+rules_version = '2';
+
+// Design rationale: docs/12-security-rules.md §12.5. Mirrors the same
+// scope-helper pattern as firestore.rules.
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function claim(key) {
+      return request.auth.token[key];
+    }
+
+    function hasRole(roles) {
+      return isSignedIn() && claim('role') in roles;
+    }
+
+    // Module 10 — lab reports. Doctor/Admin in the owning hospital and the
+    // patient themself may read; only Lab may upload, within their own
+    // hospital, size/type-limited (NFR-1.5).
+    match /labReports/{hospitalId}/{patientId}/{fileName} {
+      allow read: if isSignedIn() && (claim('hospitalId') == hospitalId || request.auth.uid == patientId);
+      allow write: if hasRole(['lab']) && claim('hospitalId') == hospitalId
+        && request.resource.size < 10 * 1024 * 1024
+        && request.resource.contentType.matches('application/pdf|image/.*');
+    }
+
+    // Not yet wired to a module — deny until their module ships:
+    //   /certificates/{hospitalId}/{patientId}/{fileName}
+    //   /profilePhotos/{uid}/{fileName}
+    //   /insuranceDocs/{patientId}/{fileName}
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

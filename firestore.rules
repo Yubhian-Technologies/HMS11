@@ -1,0 +1,509 @@
+rules_version = '2';
+
+// Design rationale: docs/12-security-rules.md. Scope helpers here are the
+// literal implementation of docs/12-security-rules.md §12.2 — every
+// collection block below (and every one added by future modules, per
+// docs/19-implementation-plan.md §19.1) reuses these instead of redefining
+// its own checks.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function claim(key) {
+      return request.auth.token[key];
+    }
+
+    function hasRole(roles) {
+      return isSignedIn() && claim('role') in roles;
+    }
+
+    // Platform scope — super_admin only, no hospital match required.
+    function isSuperAdmin() {
+      return hasRole(['super_admin']);
+    }
+
+    // Hospital scope — role's hospitalId claim must match the resource.
+    function isHospitalScoped(data) {
+      return isSignedIn() && claim('hospitalId') == data.hospitalId;
+    }
+
+    // Branch scope — hospitalId AND branchId claims must match the resource.
+    function isBranchScoped(data) {
+      return isHospitalScoped(data) && claim('branchId') == data.branchId;
+    }
+
+    // ---------------------------------------------------------------------
+    // Module 1 — Foundation (Auth/RBAC). docs/08-permission-matrix.md
+    // "Staff accounts" row.
+    // ---------------------------------------------------------------------
+    match /users/{uid} {
+      allow read: if isSuperAdmin()
+        || (isSignedIn() && request.auth.uid == uid)
+        || (hasRole(['admin']) && isHospitalScoped(resource.data))
+        || (hasRole(['office', 'reception', 'doctor', 'pharmacy', 'lab']) && isBranchScoped(resource.data));
+
+      // Staff accounts are provisioned only by Admin, for their own
+      // hospital (docs/07-user-roles.md §7.2). Patient self-registration
+      // (FR-1.2) adds its own create rule in Module 6, once the `patients`
+      // collection this depends on exists — not enabled yet.
+      allow create: if hasRole(['admin']) && isHospitalScoped(request.resource.data);
+
+      // A user may edit their own non-privileged fields; Admin may edit any
+      // field on staff within their hospital (e.g. reassigning branch/role).
+      allow update: if (isSignedIn() && request.auth.uid == uid
+          && request.resource.data.diff(resource.data).affectedKeys()
+               .hasOnly(['name', 'phone', 'photoUrl', 'fcmTokens', 'updatedAt']))
+        || (hasRole(['admin']) && isHospitalScoped(resource.data));
+
+      allow delete: if false; // no hard deletes anywhere — NFR-7.1
+    }
+
+    // auditLogs — append-only, written exclusively by the server-side
+    // writeWithAudit service (Admin SDK, bypasses rules). No client path
+    // ever writes here directly; only Admin/Super Admin may read.
+    match /auditLogs/{id} {
+      allow read: if isSuperAdmin() || (hasRole(['admin']) && isHospitalScoped(resource.data));
+      allow write: if false;
+    }
+
+    // ---------------------------------------------------------------------
+    // Module 2 — Hospital & Branch Management. docs/08-permission-matrix.md
+    // "Hospitals" / "Branches" rows. All writes in the app go through the
+    // callable functions in functions/src/callable (Admin SDK, bypasses
+    // rules) — these write rules are the backstop against any direct client
+    // write attempt, per docs/12-security-rules.md §12.1.
+    // ---------------------------------------------------------------------
+    match /hospitals/{hospitalId} {
+      allow read: if isSuperAdmin() || (hasRole(['admin']) && isHospitalScoped(resource.data));
+
+      // Admin has read-only access to their own hospital's top-level
+      // record — editing/disabling is super_admin only (FR-2.1).
+      allow create, update: if isSuperAdmin();
+      allow delete: if false; // no hard deletes anywhere — NFR-7.1
+
+      match /branches/{branchId} {
+        allow read: if isSuperAdmin()
+          || (hasRole(['admin']) && claim('hospitalId') == hospitalId)
+          || (hasRole(['office', 'reception', 'doctor', 'pharmacy', 'lab']) && claim('hospitalId') == hospitalId);
+
+        allow create, update: if isSuperAdmin()
+          || (hasRole(['admin']) && claim('hospitalId') == hospitalId);
+        allow delete: if false;
+      }
+    }
+
+    // ---------------------------------------------------------------------
+    // Module 3 — Staff & Department Management. docs/08-permission-matrix.md
+    // "Departments" row. Writes go through functions/src/callable — these
+    // rules are the backstop against direct client writes.
+    // ---------------------------------------------------------------------
+    match /departments/{departmentId} {
+      allow read: if isSuperAdmin()
+        || (hasRole(['admin']) && isHospitalScoped(resource.data))
+        || (hasRole(['office', 'reception', 'doctor']) && claim('hospitalId') == resource.data.hospitalId);
+
+      allow create, update: if hasRole(['admin']) && isHospitalScoped(request.resource.data);
+      allow delete: if false;
+    }
+
+    // doctorProfiles/{uid} — 1:1 with users/{uid}. Read access here is
+    // deliberately narrower than `users` for now: only Admin (own hospital),
+    // Super Admin, and the doctor themself need it until Module 5/7 (slot
+    // browsing, booking) requires wider read access — added then, not
+    // speculatively now.
+    match /doctorProfiles/{uid} {
+      allow read: if isSuperAdmin()
+        || (hasRole(['admin']) && isHospitalScoped(resource.data))
+        || (isSignedIn() && request.auth.uid == uid);
+
+      allow create, update: if hasRole(['admin']) && isHospitalScoped(request.resource.data);
+      allow delete: if false;
+    }
+
+    // ---------------------------------------------------------------------
+    // Module 4 — Hospital Settings & Catalogs. docs/08-permission-matrix.md
+    // "Hospital settings" / "Rooms & Beds" / "Lab Test Master" / "Medicine
+    // Inventory" rows. Writes go through functions/src/callable.
+    // ---------------------------------------------------------------------
+
+    // Hospital timings live on branches/{branchId}.timings — covered by the
+    // Module 2 rules above, no separate collection.
+
+    match /holidays/{holidayId} {
+      allow read: if isSuperAdmin()
+        || (hasRole(['admin']) && isHospitalScoped(resource.data))
+        || (hasRole(['office', 'reception', 'doctor']) && isBranchScoped(resource.data));
+      allow create, update: if hasRole(['admin']) && isHospitalScoped(request.resource.data);
+      allow delete: if false;
+    }
+
+    match /wards/{wardId} {
+      allow read: if isSuperAdmin()
+        || (hasRole(['admin']) && isHospitalScoped(resource.data))
+        || (hasRole(['office', 'reception', 'doctor']) && isBranchScoped(resource.data));
+      allow create, update: if hasRole(['admin']) && isHospitalScoped(request.resource.data);
+      allow delete: if false;
+    }
+
+    match /rooms/{roomId} {
+      allow read: if isSuperAdmin()
+        || (hasRole(['admin']) && isHospitalScoped(resource.data))
+        || (hasRole(['office', 'reception', 'doctor']) && isBranchScoped(resource.data));
+      allow create, update: if hasRole(['admin']) && isHospitalScoped(request.resource.data);
+      allow delete: if false;
+    }
+
+    match /beds/{bedId} {
+      allow read: if isSuperAdmin()
+        || (hasRole(['admin']) && isHospitalScoped(resource.data))
+        || (hasRole(['office', 'reception', 'doctor']) && isBranchScoped(resource.data));
+      // Only Admin here in Module 4 (catalog + maintenance/cleaning
+      // toggling). Module 12 (Admissions) adds a doctor-scoped rule for
+      // available -> occupied transitions when that write path exists.
+      allow create, update: if hasRole(['admin']) && isHospitalScoped(request.resource.data);
+      allow delete: if false;
+    }
+
+    match /labTestMaster/{testId} {
+      allow read: if isSuperAdmin()
+        || (hasRole(['admin']) && isHospitalScoped(resource.data))
+        || (hasRole(['doctor', 'lab']) && isBranchScoped(resource.data))
+        || hasRole(['patient']);
+      allow create, update: if hasRole(['admin']) && isHospitalScoped(request.resource.data);
+      allow delete: if false;
+    }
+
+    match /medicineInventory/{itemId} {
+      allow read: if isSuperAdmin()
+        || (hasRole(['admin']) && isHospitalScoped(resource.data))
+        || (hasRole(['pharmacy']) && isBranchScoped(resource.data));
+      allow create, update: if (hasRole(['admin']) && isHospitalScoped(request.resource.data))
+        || (hasRole(['pharmacy']) && isBranchScoped(request.resource.data));
+      allow delete: if false;
+    }
+
+    // ---------------------------------------------------------------------
+    // Module 5 — Doctor Availability & Slot Management.
+    // docs/08-permission-matrix.md "Doctor availability templates" /
+    // "Doctor slots" rows. Writes go through functions/src/callable and the
+    // generateRollingSlots scheduled function (Admin SDK, bypasses rules).
+    // ---------------------------------------------------------------------
+    match /doctorAvailabilityTemplates/{templateId} {
+      allow read: if isSuperAdmin()
+        || (hasRole(['admin']) && isHospitalScoped(resource.data))
+        || (hasRole(['office', 'reception']) && isBranchScoped(resource.data))
+        || (hasRole(['doctor']) && resource.data.doctorId == request.auth.uid);
+      allow create, update: if (hasRole(['admin']) && isHospitalScoped(request.resource.data))
+        || (hasRole(['doctor']) && request.resource.data.doctorId == request.auth.uid
+            && isHospitalScoped(request.resource.data));
+      allow delete: if false;
+    }
+
+    match /doctorSlots/{slotId} {
+      // Patients may read any APPROVED slot platform-wide (booking browse —
+      // Module 7), not just their own hospital: ownership scope doesn't
+      // apply to browsing availability, only to a patient's own records.
+      allow read: if isSuperAdmin()
+        || (hasRole(['admin']) && isHospitalScoped(resource.data))
+        || (hasRole(['office', 'reception']) && isBranchScoped(resource.data))
+        || (hasRole(['doctor']) && resource.data.doctorId == request.auth.uid)
+        || (hasRole(['patient']) && resource.data.status == 'approved');
+      allow create: if hasRole(['office']) && isBranchScoped(request.resource.data);
+      allow update: if (hasRole(['doctor']) && resource.data.doctorId == request.auth.uid)
+        || (hasRole(['office']) && isBranchScoped(resource.data));
+      allow delete: if false;
+    }
+
+    // ---------------------------------------------------------------------
+    // Module 6 — Patient Registration & Portal.
+    // docs/08-permission-matrix.md "Patients (profile)" row. Writes go
+    // through functions/src/callable (Admin SDK, bypasses rules) — these
+    // are the backstop against direct client writes.
+    //
+    // hospitalId is null for a self-registered patient (ownership scope
+    // only — docs/07-user-roles.md §7.1) and set only for a Reception
+    // walk-in record, so isHospitalScoped/isBranchScoped only ever match
+    // walk-ins here; self-registered profiles are reached solely through
+    // the `resource.data.userId == request.auth.uid` clause.
+    // ---------------------------------------------------------------------
+    match /patients/{patientId} {
+      allow read: if isSuperAdmin()
+        || (hasRole(['admin']) && isHospitalScoped(resource.data))
+        || (hasRole(['office', 'reception']) && isBranchScoped(resource.data))
+        || (isSignedIn() && resource.data.userId == request.auth.uid);
+
+      allow create: if (hasRole(['patient']) && request.auth.uid == patientId
+          && request.resource.data.userId == request.auth.uid)
+        || (hasRole(['reception']) && isBranchScoped(request.resource.data)
+            && request.resource.data.userId == null);
+
+      allow update: if (hasRole(['patient']) && resource.data.userId == request.auth.uid)
+        || (resource.data.userId == null
+            && ((hasRole(['reception']) || hasRole(['admin'])) && isHospitalScoped(resource.data)))
+        || isSuperAdmin();
+
+      allow delete: if false;
+    }
+
+    // ---------------------------------------------------------------------
+    // Module 7 — Appointment Booking. docs/08-permission-matrix.md
+    // "Appointments" row. Writes go through functions/src/callable — these
+    // are the backstop against direct client writes.
+    // ---------------------------------------------------------------------
+    match /appointments/{appointmentId} {
+      allow read: if isSuperAdmin()
+        || (hasRole(['admin']) && isHospitalScoped(resource.data))
+        || (hasRole(['office', 'reception']) && isBranchScoped(resource.data))
+        || (hasRole(['doctor']) && resource.data.doctorId == request.auth.uid)
+        || (hasRole(['patient']) && resource.data.patientId == request.auth.uid);
+
+      allow create: if (hasRole(['patient']) && request.resource.data.patientId == request.auth.uid)
+        || (hasRole(['reception', 'office']) && isBranchScoped(request.resource.data));
+
+      allow update: if hasRole(['office', 'reception']) && isBranchScoped(resource.data);
+
+      allow delete: if false;
+    }
+
+    // ---------------------------------------------------------------------
+    // Module 8 — Reception & Vitals. docs/08-permission-matrix.md "Vitals"
+    // row. Writes go through functions/src/callable.
+    //
+    // Doctor read is branch-scoped rather than narrowed to "their own
+    // patients" — the doctor's queue query already filters by their own
+    // doctorId when fetching appointments, then reads vitals by
+    // appointmentId for just those; this rule is the (slightly wider)
+    // backstop, not the primary access-control mechanism for that view.
+    // ---------------------------------------------------------------------
+    match /vitals/{vitalsId} {
+      allow read: if isSuperAdmin()
+        || (hasRole(['admin']) && isHospitalScoped(resource.data))
+        || (hasRole(['reception', 'doctor']) && isBranchScoped(resource.data))
+        || (hasRole(['patient']) && resource.data.patientId == request.auth.uid);
+
+      allow create: if hasRole(['reception']) && isBranchScoped(request.resource.data);
+      // Append-only per visit — no edit path (NFR-7.2 clinical append-only).
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    // ---------------------------------------------------------------------
+    // Module 9 — Consultation Workspace. docs/08-permission-matrix.md
+    // "Consultations" / "Prescriptions" / "Lab orders" / "Admissions" /
+    // "Follow-ups" / "Medical certificates" / "Referrals" rows. Writes go
+    // through the single submitConsultation callable (Admin SDK, bypasses
+    // rules) — these are the backstop against direct client writes.
+    //
+    // Doctor read is branch-scoped (same simplification as vitals above)
+    // rather than narrowed to "authored by this doctor" — FR-9.1 requires
+    // seeing a patient's full history including other doctors' entries, and
+    // precisely scoping to "doctors currently treating this patient" would
+    // need an expensive in-rule appointment lookup for little real benefit
+    // within one branch's clinical team.
+    // ---------------------------------------------------------------------
+    match /consultations/{id} {
+      allow read: if isSuperAdmin()
+        || (hasRole(['admin']) && isHospitalScoped(resource.data))
+        || (hasRole(['doctor']) && isBranchScoped(resource.data))
+        || (hasRole(['patient']) && resource.data.patientId == request.auth.uid);
+      allow create: if hasRole(['doctor']) && isBranchScoped(request.resource.data);
+      allow update: if false; // append-only — corrections are new consultations (NFR-7.2)
+      allow delete: if false;
+    }
+
+    match /prescriptions/{id} {
+      allow read: if isSuperAdmin()
+        || (hasRole(['admin']) && isHospitalScoped(resource.data))
+        || (hasRole(['doctor', 'pharmacy']) && isBranchScoped(resource.data))
+        || (hasRole(['patient']) && resource.data.patientId == request.auth.uid);
+      allow create: if hasRole(['doctor']) && isBranchScoped(request.resource.data);
+      allow update: if hasRole(['pharmacy']) && isBranchScoped(resource.data); // dispensing fields, Module 11
+      allow delete: if false;
+    }
+
+    match /labOrders/{id} {
+      allow read: if isSuperAdmin()
+        || (hasRole(['admin']) && isHospitalScoped(resource.data))
+        || (hasRole(['doctor', 'lab']) && isBranchScoped(resource.data))
+        || (hasRole(['patient']) && resource.data.patientId == request.auth.uid);
+      allow create: if hasRole(['doctor']) && isBranchScoped(request.resource.data);
+      allow update: if hasRole(['lab']) && isBranchScoped(resource.data); // pipeline transitions, Module 10
+      allow delete: if false;
+    }
+
+    match /admissions/{id} {
+      allow read: if isSuperAdmin()
+        || (hasRole(['admin']) && isHospitalScoped(resource.data))
+        || (hasRole(['doctor', 'reception']) && isBranchScoped(resource.data))
+        || (hasRole(['patient']) && resource.data.patientId == request.auth.uid);
+      allow create: if hasRole(['doctor']) && isBranchScoped(request.resource.data);
+      allow update: if hasRole(['doctor']) && isBranchScoped(resource.data); // discharge, Module 12
+      allow delete: if false;
+    }
+
+    match /followUps/{id} {
+      allow read: if isSuperAdmin()
+        || (hasRole(['admin']) && isHospitalScoped(resource.data))
+        || (hasRole(['office', 'reception', 'doctor']) && isBranchScoped(resource.data))
+        || (hasRole(['patient']) && resource.data.patientId == request.auth.uid);
+      allow create, update: if hasRole(['doctor']) && isBranchScoped(request.resource.data);
+      allow delete: if false;
+    }
+
+    match /medicalCertificates/{id} {
+      allow read: if isSuperAdmin()
+        || (hasRole(['admin']) && isHospitalScoped(resource.data))
+        || (hasRole(['doctor']) && isBranchScoped(resource.data))
+        || (hasRole(['patient']) && resource.data.patientId == request.auth.uid);
+      allow create: if hasRole(['doctor']) && isBranchScoped(request.resource.data);
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    match /referrals/{id} {
+      allow read: if isSuperAdmin()
+        || (hasRole(['admin']) && isHospitalScoped(resource.data))
+        || (hasRole(['doctor']) && isBranchScoped(resource.data))
+        || (hasRole(['patient']) && resource.data.patientId == request.auth.uid);
+      allow create: if hasRole(['doctor']) && isBranchScoped(request.resource.data);
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    // ---------------------------------------------------------------------
+    // Module 10 — Laboratory Workflow. docs/08-permission-matrix.md "Lab
+    // reports" row. labOrders write rules already exist above (Module 9).
+    // ---------------------------------------------------------------------
+    match /labReports/{id} {
+      allow read: if isSuperAdmin()
+        || (hasRole(['admin']) && isHospitalScoped(resource.data))
+        || (hasRole(['doctor', 'lab']) && isBranchScoped(resource.data))
+        || (hasRole(['patient']) && resource.data.patientId == request.auth.uid);
+      allow create: if hasRole(['lab']) && isBranchScoped(request.resource.data);
+      allow update: if false; // append-only (NFR-7.2)
+      allow delete: if false;
+    }
+
+    // ---------------------------------------------------------------------
+    // Module 11 — Pharmacy Workflow. docs/08-permission-matrix.md
+    // "Medicine dispense records" / "Medicine logs" rows. Writes go
+    // through functions/src/callable/dispenseMedicine.
+    // ---------------------------------------------------------------------
+    match /medicineDispenses/{id} {
+      allow read: if isSuperAdmin()
+        || (hasRole(['admin']) && isHospitalScoped(resource.data))
+        || (hasRole(['pharmacy']) && isBranchScoped(resource.data))
+        || (hasRole(['patient']) && resource.data.patientId == request.auth.uid);
+      allow create, update: if hasRole(['pharmacy']) && isBranchScoped(request.resource.data);
+      allow delete: if false;
+    }
+
+    match /medicineLogs/{id} {
+      allow read: if isSuperAdmin()
+        || (hasRole(['admin']) && isHospitalScoped(resource.data))
+        || (hasRole(['doctor']) && isBranchScoped(resource.data))
+        || (hasRole(['patient']) && resource.data.patientId == request.auth.uid);
+      // FR-14.1 — patient marks their own dose taken/missed/skipped.
+      // Writes go through functions/src/callable/logMedicineStatus, which
+      // restricts the update to the patientStatus field alone; this is the
+      // backstop for a hypothetical direct client write.
+      allow create: if false;
+      allow update: if hasRole(['patient']) && resource.data.patientId == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['patientStatus', 'updatedAt']);
+      allow delete: if false;
+    }
+
+    // ---------------------------------------------------------------------
+    // Module 14 — Recovery Tracking. docs/08-permission-matrix.md "Health
+    // updates" row. hospitalId is null (self-reported, no tenant binding —
+    // same as the patients/{patientId} self-registered case above), which
+    // means there is no branch/hospital scope to gate a doctor's read by
+    // here — unlike consultations etc. Doctor/Admin visibility into a
+    // specific patient's recovery trend (FR-14.3) is served by server-side
+    // Admin SDK reads in the consultation workspace (bypasses rules by
+    // design, same as every other server-rendered page in this app), never
+    // by a direct client Firestore read — so this rule only needs to cover
+    // the patient's own access, not a broader clinical-staff clause that
+    // would otherwise leak every patient's health data platform-wide.
+    // ---------------------------------------------------------------------
+    match /healthUpdates/{id} {
+      allow read: if isSuperAdmin() || (hasRole(['patient']) && resource.data.patientId == request.auth.uid);
+      allow create: if hasRole(['patient']) && request.resource.data.patientId == request.auth.uid;
+      allow update: if false; // append-only (NFR-7.2)
+      allow delete: if false;
+    }
+
+    // ---------------------------------------------------------------------
+    // Module 15 — Billing. docs/08-permission-matrix.md "Invoices" row.
+    // Writes go through functions/src/callable/generateInvoice and
+    // recordPayment.
+    // ---------------------------------------------------------------------
+    match /invoices/{id} {
+      allow read: if isSuperAdmin()
+        || (hasRole(['admin']) && isHospitalScoped(resource.data))
+        || (hasRole(['reception']) && isBranchScoped(resource.data))
+        || (hasRole(['patient']) && resource.data.patientId == request.auth.uid);
+      allow create: if hasRole(['reception', 'admin']) && isHospitalScoped(request.resource.data);
+      allow update: if hasRole(['reception', 'admin']) && isHospitalScoped(resource.data);
+      allow delete: if false;
+    }
+
+    // ---------------------------------------------------------------------
+    // Module 16 — Notifications. docs/08-permission-matrix.md
+    // "Notifications" row. Written exclusively by the server-side
+    // sendNotification() helper (Admin SDK, bypasses rules) — no client
+    // create path exists. hospitalId is nullable (a patient's notifications
+    // aren't tenant-bound, same reasoning as healthUpdates above), so this
+    // is pure ownership scope: a user reads/updates only their own.
+    // ---------------------------------------------------------------------
+    match /notifications/{id} {
+      allow read: if isSuperAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow create: if false;
+      // markNotificationRead restricts this to the `read` field alone; this
+      // is the backstop for a hypothetical direct client write.
+      allow update: if isSignedIn() && resource.data.userId == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read', 'updatedAt']);
+      allow delete: if false;
+    }
+
+    // ---------------------------------------------------------------------
+    // Module 17 — Feedback & Complaints. docs/08-permission-matrix.md
+    // "Feedback" row. Writes go through functions/src/callable/submitFeedback
+    // and resolveFeedback. Doctor read is branch-scoped rather than narrowed
+    // to "own patients" — same simplification as consultations/vitals above,
+    // and safe here because feedback (unlike healthUpdates) always carries a
+    // non-null hospitalId, so it can never leak platform-wide.
+    // ---------------------------------------------------------------------
+    match /feedback/{id} {
+      allow read: if isSuperAdmin()
+        || (hasRole(['admin']) && isHospitalScoped(resource.data))
+        || (hasRole(['doctor']) && isBranchScoped(resource.data))
+        || (hasRole(['patient']) && resource.data.patientId == request.auth.uid);
+      allow create: if false;
+      allow update: if hasRole(['admin']) && isHospitalScoped(resource.data)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt']);
+      allow delete: if false;
+    }
+
+    // ---------------------------------------------------------------------
+    // Module 18 — Analytics. docs/08-permission-matrix.md "Analytics" row.
+    // Written exclusively by the nightly rollUpDailyStats scheduled function
+    // (Admin SDK, bypasses rules) — no client write path exists.
+    // ---------------------------------------------------------------------
+    match /dailyStats/{id} {
+      allow read: if isSuperAdmin() || (hasRole(['admin']) && isHospitalScoped(resource.data));
+      allow write: if false;
+    }
+
+    // ---------------------------------------------------------------------
+    // Every other collection ships its rules with its own module
+    // (docs/18-development-roadmap.md) — deny by default until then.
+    // ---------------------------------------------------------------------
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

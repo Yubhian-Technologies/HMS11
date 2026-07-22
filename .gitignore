@@ -1,0 +1,32 @@
+node_modules/
+.pnpm-store/
+
+# Next.js
+.next/
+out/
+
+# Firebase
+.firebase/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+*.emulator-data/
+
+# Build
+dist/
+lib/
+build/
+.deploy/
+functions/vendor/
+
+# Env
+.env
+.env.local
+.env.*.local
+functions/.env
+functions/.env.*
+
+# Misc
+.DS_Store
+*.log
+.vercel/

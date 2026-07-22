@@ -1,0 +1,26 @@
+{
+  "name": "functions",
+  "version": "0.0.0",
+  "private": true,
+  "engines": {
+    "node": "20"
+  },
+  "main": "lib/index.js",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc --watch",
+    "serve": "pnpm build && firebase emulators:start --only functions",
+    "deploy": "pnpm --dir .. build:shared && pnpm build && CI=true firebase deploy --only functions",
+    "typecheck": "tsc --noEmit",
+    "seed:super-admin": "node scripts/seed-super-admin.mjs"
+  },
+  "dependencies": {
+    "@hms/shared": "workspace:*",
+    "@hms/shared-server": "workspace:*",
+    "firebase-admin": "^13.0.2",
+    "firebase-functions": "^6.1.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2"
+  }
+}
