@@ -15,6 +15,17 @@ export type CreateWardRequest = z.infer<typeof CreateWardRequest>;
 export const CreateWardResponse = z.object({ wardId: z.string() });
 export type CreateWardResponse = z.infer<typeof CreateWardResponse>;
 
+export const UpdateWardRequest = z
+  .object({
+    hospitalId: z.string().min(1),
+    wardId: z.string().min(1),
+    building: z.string().min(1),
+    floor: z.string().min(1),
+    name: z.string().min(1),
+  })
+  .strict();
+export type UpdateWardRequest = z.infer<typeof UpdateWardRequest>;
+
 export const SetWardStatusRequest = z
   .object({
     hospitalId: z.string().min(1),

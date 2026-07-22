@@ -18,3 +18,18 @@ export type DischargePatientRequest = z.infer<typeof DischargePatientRequest>;
 
 export const DischargePatientResponse = z.object({ success: z.boolean() });
 export type DischargePatientResponse = z.infer<typeof DischargePatientResponse>;
+
+/**
+ * office only, own branch. Checks the bed is actually available and links
+ * it to the admission — this is what advances "pendingBedAssignment" to
+ * "admitted" (see the Admission type doc comment).
+ */
+export const AssignBedToAdmissionRequest = z
+  .object({
+    hospitalId: z.string().min(1),
+    branchId: z.string().min(1),
+    admissionId: z.string().min(1),
+    bedId: z.string().min(1),
+  })
+  .strict();
+export type AssignBedToAdmissionRequest = z.infer<typeof AssignBedToAdmissionRequest>;

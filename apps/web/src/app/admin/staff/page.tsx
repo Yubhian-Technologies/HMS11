@@ -84,7 +84,7 @@ export default async function StaffPage() {
                         </p>
                       </div>
                       <div className="flex items-center gap-2">
-                        <Badge variant={doctor.status === "active" ? "default" : "destructive"}>
+                        <Badge variant={doctor.status === "active" ? "success" : "destructive"} className="w-20 justify-center">
                           {doctor.status}
                         </Badge>
                         <StaffStatusToggle hospitalId={hospitalId} uid={doctor.id} status={doctor.status} />
@@ -120,7 +120,7 @@ export default async function StaffPage() {
                         </p>
                       </div>
                       <div className="flex items-center gap-2">
-                        <Badge variant={member.status === "active" ? "default" : "destructive"}>
+                        <Badge variant={member.status === "active" ? "success" : "destructive"} className="w-20 justify-center">
                           {member.status}
                         </Badge>
                         <StaffStatusToggle hospitalId={hospitalId} uid={member.id} status={member.status} />

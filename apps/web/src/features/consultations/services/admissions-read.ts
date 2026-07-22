@@ -12,3 +12,13 @@ export async function listActiveAdmissionsForDoctor(doctorId: string): Promise<A
     .get();
   return snap.docs.map((doc) => ({ id: doc.id, ...(doc.data() as Admission) }));
 }
+
+/** Office Room Assignment queue — doctor-flagged requests awaiting a bed. */
+export async function listPendingBedAssignments(branchId: string): Promise<AdmissionRecord[]> {
+  const snap = await getAdminDb()
+    .collection("admissions")
+    .where("branchId", "==", branchId)
+    .where("status", "==", "pendingBedAssignment")
+    .get();
+  return snap.docs.map((doc) => ({ id: doc.id, ...(doc.data() as Admission) }));
+}

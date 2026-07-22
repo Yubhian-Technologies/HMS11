@@ -31,7 +31,7 @@ export default async function DoctorAdmissionsPage() {
                 key={admission.id}
                 className="flex items-center justify-between rounded-md border border-border p-3 text-sm"
               >
-                <p className="font-medium text-foreground">{patient?.name ?? admission.patientId}</p>
+                <p className="font-medium text-foreground">{patient?.name ?? "Unknown patient"}</p>
                 <DischargeDialog
                   hospitalId={hospitalId}
                   admissionId={admission.id}

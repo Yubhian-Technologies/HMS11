@@ -29,7 +29,9 @@ export { setDepartmentStatus } from "./callable/setDepartmentStatus";
 // Module 4 — Hospital Settings & Catalogs (docs/13-cloud-functions.md §13.3).
 export { createHoliday } from "./callable/createHoliday";
 export { setHolidayStatus } from "./callable/setHolidayStatus";
+export { deleteHoliday } from "./callable/deleteHoliday";
 export { createWard } from "./callable/createWard";
+export { updateWard } from "./callable/updateWard";
 export { setWardStatus } from "./callable/setWardStatus";
 export { createRoom } from "./callable/createRoom";
 export { setRoomStatus } from "./callable/setRoomStatus";
@@ -49,6 +51,10 @@ export { setSlotStatus } from "./callable/setSlotStatus";
 export { bulkApproveSlots } from "./callable/bulkApproveSlots";
 export { createManualSlot } from "./callable/createManualSlot";
 export { generateRollingSlots } from "./scheduled/generateRollingSlots";
+
+// Doctor Availability Requests (Doctor Dashboard modules add-on).
+export { createAvailabilityRequest } from "./callable/createAvailabilityRequest";
+export { respondAvailabilityRequest } from "./callable/respondAvailabilityRequest";
 
 // Module 6 — Patient Registration & Portal (docs/13-cloud-functions.md §13.3).
 export { registerPatientProfile } from "./callable/registerPatientProfile";
@@ -74,11 +80,21 @@ export { submitConsultation } from "./callable/submitConsultation";
 export { advanceLabOrderStatus } from "./callable/advanceLabOrderStatus";
 export { uploadLabReport } from "./callable/uploadLabReport";
 
+// Doctor Labs module (Doctor Dashboard modules add-on) — standalone lab
+// order assignment + Office payment gate ahead of the Module 10 pipeline.
+export { assignLabOrder } from "./callable/assignLabOrder";
+export { markLabOrderPaid } from "./callable/markLabOrderPaid";
+
 // Module 11 — Pharmacy Workflow (docs/13-cloud-functions.md §13.3).
 export { dispenseMedicine } from "./callable/dispenseMedicine";
+export { dispatchExpiryAlerts } from "./scheduled/dispatchExpiryAlerts";
+
+// Doctor Medicine Orders module (Doctor Dashboard modules add-on).
+export { assignMedicineOrder } from "./callable/assignMedicineOrder";
 
 // Module 12 — Admissions & Bed Management (docs/13-cloud-functions.md §13.3).
 export { dischargePatient } from "./callable/dischargePatient";
+export { assignBedToAdmission } from "./callable/assignBedToAdmission";
 
 // Module 14 — Recovery Tracking (docs/13-cloud-functions.md §13.3).
 export { submitHealthUpdate } from "./callable/submitHealthUpdate";

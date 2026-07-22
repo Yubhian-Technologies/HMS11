@@ -137,7 +137,10 @@ service cloud.firestore {
         || (hasRole(['admin']) && isHospitalScoped(resource.data))
         || (hasRole(['office', 'reception', 'doctor']) && isBranchScoped(resource.data));
       allow create, update: if hasRole(['admin']) && isHospitalScoped(request.resource.data);
-      allow delete: if false;
+      // Deliberate, narrow exception to NFR-7.1 ("no hard deletes anywhere")
+      // — holidays are a non-clinical scheduling record. Every other
+      // collection in this file keeps `allow delete: if false`.
+      allow delete: if hasRole(['admin']) && isHospitalScoped(resource.data);
     }
 
     match /wards/{wardId} {
@@ -160,10 +163,13 @@ service cloud.firestore {
       allow read: if isSuperAdmin()
         || (hasRole(['admin']) && isHospitalScoped(resource.data))
         || (hasRole(['office', 'reception', 'doctor']) && isBranchScoped(resource.data));
-      // Only Admin here in Module 4 (catalog + maintenance/cleaning
-      // toggling). Module 12 (Admissions) adds a doctor-scoped rule for
-      // available -> occupied transitions when that write path exists.
-      allow create, update: if hasRole(['admin']) && isHospitalScoped(request.resource.data);
+      // Admin creates the catalog end to end (Module 4). Office additionally
+      // manages day-to-day bed status (setBedStatus) and drives
+      // available -> occupied when assigning a bed to an admission
+      // (assignBedToAdmission) — the admin-creates/office-manages split.
+      allow create: if hasRole(['admin']) && isHospitalScoped(request.resource.data);
+      allow update: if (hasRole(['admin']) && isHospitalScoped(request.resource.data))
+        || (hasRole(['office']) && isBranchScoped(request.resource.data));
       allow delete: if false;
     }
 
@@ -214,6 +220,23 @@ service cloud.firestore {
       allow create: if hasRole(['office']) && isBranchScoped(request.resource.data);
       allow update: if (hasRole(['doctor']) && resource.data.doctorId == request.auth.uid)
         || (hasRole(['office']) && isBranchScoped(resource.data));
+      allow delete: if false;
+    }
+
+    // ---------------------------------------------------------------------
+    // Doctor Availability Requests (Doctor Dashboard modules add-on). Office
+    // asks a doctor to confirm capacity for a date; the doctor responds.
+    // Writes go through functions/src/callable/createAvailabilityRequest and
+    // respondAvailabilityRequest — these rules are the backstop.
+    // ---------------------------------------------------------------------
+    match /availabilityRequests/{requestId} {
+      allow read: if isSuperAdmin()
+        || (hasRole(['admin']) && isHospitalScoped(resource.data))
+        || (hasRole(['office']) && isBranchScoped(resource.data))
+        || (hasRole(['doctor']) && resource.data.doctorId == request.auth.uid);
+      allow create: if hasRole(['office']) && isBranchScoped(request.resource.data);
+      allow update: if hasRole(['doctor']) && resource.data.doctorId == request.auth.uid
+        && isBranchScoped(resource.data);
       allow delete: if false;
     }
 
@@ -325,22 +348,34 @@ service cloud.firestore {
     }
 
     match /labOrders/{id} {
+      // Office is included here too — the doctor Labs module (add-on to
+      // Module 9) lets a doctor assign a standalone lab order that starts at
+      // "pendingPayment"; Office needs read access to see the payment queue
+      // and update access to flip it to "pending" (see the update clause).
       allow read: if isSuperAdmin()
         || (hasRole(['admin']) && isHospitalScoped(resource.data))
-        || (hasRole(['doctor', 'lab']) && isBranchScoped(resource.data))
+        || (hasRole(['doctor', 'lab', 'office']) && isBranchScoped(resource.data))
         || (hasRole(['patient']) && resource.data.patientId == request.auth.uid);
       allow create: if hasRole(['doctor']) && isBranchScoped(request.resource.data);
-      allow update: if hasRole(['lab']) && isBranchScoped(resource.data); // pipeline transitions, Module 10
+      allow update: if (hasRole(['lab']) && isBranchScoped(resource.data)) // pipeline transitions, Module 10
+        || (hasRole(['office']) && isBranchScoped(resource.data)
+            && resource.data.status == 'pendingPayment' && request.resource.data.status == 'pending');
       allow delete: if false;
     }
 
     match /admissions/{id} {
+      // Office is included in read/update too — the doctor only flags
+      // "needs a room" (status "pendingBedAssignment", no bed yet); Office
+      // checks availability and assigns the actual bed
+      // (assignBedToAdmission), which is what advances it to "admitted".
       allow read: if isSuperAdmin()
         || (hasRole(['admin']) && isHospitalScoped(resource.data))
-        || (hasRole(['doctor', 'reception']) && isBranchScoped(resource.data))
+        || (hasRole(['doctor', 'reception', 'office']) && isBranchScoped(resource.data))
         || (hasRole(['patient']) && resource.data.patientId == request.auth.uid);
       allow create: if hasRole(['doctor']) && isBranchScoped(request.resource.data);
-      allow update: if hasRole(['doctor']) && isBranchScoped(resource.data); // discharge, Module 12
+      allow update: if (hasRole(['doctor']) && isBranchScoped(resource.data)) // discharge, Module 12
+        || (hasRole(['office']) && isBranchScoped(resource.data)
+            && resource.data.status == 'pendingBedAssignment' && request.resource.data.status == 'admitted');
       allow delete: if false;
     }
 
@@ -398,6 +433,20 @@ service cloud.firestore {
         || (hasRole(['pharmacy']) && isBranchScoped(resource.data))
         || (hasRole(['patient']) && resource.data.patientId == request.auth.uid);
       allow create, update: if hasRole(['pharmacy']) && isBranchScoped(request.resource.data);
+      allow delete: if false;
+    }
+
+    // ---------------------------------------------------------------------
+    // Doctor Medicine Orders (Doctor Dashboard modules add-on). Standalone
+    // medicine + duration assignment, separate from prescriptions/{id}
+    // (Module 9). Writes go through functions/src/callable/assignMedicineOrder.
+    // ---------------------------------------------------------------------
+    match /doctorMedicineOrders/{id} {
+      allow read: if isSuperAdmin()
+        || (hasRole(['admin']) && isHospitalScoped(resource.data))
+        || (hasRole(['doctor', 'pharmacy']) && isBranchScoped(resource.data));
+      allow create: if hasRole(['doctor']) && isBranchScoped(request.resource.data);
+      allow update: if false;
       allow delete: if false;
     }
 

@@ -108,13 +108,18 @@ export async function getPatientTimeline(patientId: string): Promise<TimelineEnt
 
   admSnap.docs.forEach((doc) => {
     const a = doc.data() as Admission;
-    entries.push({
-      id: doc.id,
-      type: "admission",
-      date: toDateString(a.admittedAt),
-      title: "Admitted",
-      description: `Bed ${a.bedId}`,
-    });
+    // Skip requests still awaiting a bed (FR-9.9 add-on) — nothing has
+    // actually happened yet from the patient's perspective until Office
+    // assigns one and admittedAt/bedId are set.
+    if (a.admittedAt && a.bedId) {
+      entries.push({
+        id: doc.id,
+        type: "admission",
+        date: toDateString(a.admittedAt),
+        title: "Admitted",
+        description: `Bed ${a.bedId}`,
+      });
+    }
     if (a.dischargeSummary && a.dischargedAt) {
       entries.push({
         id: `${doc.id}-discharge`,

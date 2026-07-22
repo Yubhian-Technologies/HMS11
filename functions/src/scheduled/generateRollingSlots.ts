@@ -1,6 +1,39 @@
 import { onSchedule } from "firebase-functions/v2/scheduler";
-import { FieldValue, getFirestore } from "firebase-admin/firestore";
+import { FieldValue, getFirestore, type WriteBatch } from "firebase-admin/firestore";
+import { AVAILABILITY_WINDOWS } from "@hms/shared";
 import { addDays, overlapsAnyBreak, todayIso, toHHMM, toMinutes, weekdayOf } from "../services/datetime";
+
+/**
+ * Fills a session (morning/afternoon) with up to `count` consecutive
+ * `duration`-minute slots starting at the session's fixed window start,
+ * skipping any that overlap a break — bounded by the window's own end so a
+ * heavily broken-up window can never run past it (it just yields fewer
+ * slots than requested rather than overflowing into the next session).
+ */
+function generateSessionSlots(params: {
+  batch: WriteBatch;
+  db: FirebaseFirestore.Firestore;
+  windowStart: string;
+  windowEnd: string;
+  count: number;
+  duration: number;
+  breaks: { start: string; end: string }[];
+  base: Record<string, unknown>;
+}): number {
+  const { batch, db, windowStart, windowEnd, count, duration, breaks, base } = params;
+  const endMin = toMinutes(windowEnd);
+  let t = toMinutes(windowStart);
+  let made = 0;
+  while (made < count && t + duration <= endMin) {
+    if (!overlapsAnyBreak(t, t + duration, breaks)) {
+      const slotRef = db.collection("doctorSlots").doc();
+      batch.set(slotRef, { ...base, startTime: toHHMM(t), endTime: toHHMM(t + duration) });
+      made++;
+    }
+    t += duration;
+  }
+  return made;
+}
 
 /**
  * FR-4.2. Runs nightly and generates only the single day newly entering the
@@ -40,32 +73,44 @@ export const generateRollingSlots = onSchedule("every day 02:00", async () => {
       .get();
     if (!holidaySnap.empty) continue;
 
-    const startMin = toMinutes(template.startTime);
-    const endMin = toMinutes(template.endTime);
     const duration = template.slotDurationMinutes as number;
     const breaks = (template.breaks as { start: string; end: string }[]) ?? [];
     const now = FieldValue.serverTimestamp();
 
     const batch = db.batch();
+    const base = {
+      doctorId: template.doctorId,
+      date: targetDate,
+      status: "pendingApproval",
+      generatedByTemplateId: templateDoc.id,
+      hospitalId: template.hospitalId,
+      branchId: template.branchId,
+      createdBy: "system",
+      createdAt: now,
+      updatedAt: now,
+    };
+
     let generated = 0;
-    for (let t = startMin; t + duration <= endMin; t += duration) {
-      if (overlapsAnyBreak(t, t + duration, breaks)) continue;
-      const slotRef = db.collection("doctorSlots").doc();
-      batch.set(slotRef, {
-        doctorId: template.doctorId,
-        date: targetDate,
-        startTime: toHHMM(t),
-        endTime: toHHMM(t + duration),
-        status: "pendingApproval",
-        generatedByTemplateId: templateDoc.id,
-        hospitalId: template.hospitalId,
-        branchId: template.branchId,
-        createdBy: "system",
-        createdAt: now,
-        updatedAt: now,
-      });
-      generated++;
-    }
+    generated += generateSessionSlots({
+      batch,
+      db,
+      windowStart: AVAILABILITY_WINDOWS.morning.start,
+      windowEnd: AVAILABILITY_WINDOWS.morning.end,
+      count: (template.morningSlots as number) ?? 0,
+      duration,
+      breaks,
+      base,
+    });
+    generated += generateSessionSlots({
+      batch,
+      db,
+      windowStart: AVAILABILITY_WINDOWS.afternoon.start,
+      windowEnd: AVAILABILITY_WINDOWS.afternoon.end,
+      count: (template.afternoonSlots as number) ?? 0,
+      duration,
+      breaks,
+      base,
+    });
 
     if (generated > 0) {
       const auditRef = db.collection("auditLogs").doc();

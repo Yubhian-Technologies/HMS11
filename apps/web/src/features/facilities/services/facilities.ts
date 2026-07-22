@@ -2,6 +2,7 @@ import { z } from "zod";
 import {
   CreateWardRequest,
   CreateWardResponse,
+  UpdateWardRequest,
   SetWardStatusRequest,
   CreateRoomRequest,
   CreateRoomResponse,
@@ -15,6 +16,7 @@ import { createCallable } from "@/lib/firebase/callable";
 const SuccessResponse = z.object({ success: z.boolean() });
 
 export const createWard = createCallable("createWard", CreateWardRequest, CreateWardResponse);
+export const updateWard = createCallable("updateWard", UpdateWardRequest, SuccessResponse);
 export const setWardStatus = createCallable("setWardStatus", SetWardStatusRequest, SuccessResponse);
 
 export const createRoom = createCallable("createRoom", CreateRoomRequest, CreateRoomResponse);

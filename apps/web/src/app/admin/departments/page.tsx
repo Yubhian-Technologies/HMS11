@@ -37,7 +37,7 @@ export default async function DepartmentsPage() {
               >
                 <p className="font-medium text-foreground">{dept.name}</p>
                 <div className="flex items-center gap-2">
-                  <Badge variant={dept.status === "active" ? "default" : "destructive"}>{dept.status}</Badge>
+                  <Badge variant={dept.status === "active" ? "success" : "destructive"} className="w-20 justify-center">{dept.status}</Badge>
                   <DepartmentStatusToggle hospitalId={hospitalId} departmentId={dept.id} status={dept.status} />
                 </div>
               </div>

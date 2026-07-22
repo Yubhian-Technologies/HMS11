@@ -9,5 +9,8 @@
     "lint": "pnpm -r lint",
     "typecheck": "pnpm build:shared && pnpm -r typecheck",
     "emulators": "firebase emulators:start"
+  },
+  "devDependencies": {
+    "firebase-tools": "^15.24.0"
   }
 }

@@ -19,6 +19,8 @@ export * from "./types/notifications";
 export * from "./types/feedback";
 export * from "./types/analytics";
 export * from "./types/audit";
+export * from "./types/availabilityRequests";
+export * from "./types/doctorMedicineOrders";
 
 export * from "./rbac/roles";
 export * from "./rbac/permission-matrix";
@@ -44,3 +46,5 @@ export * from "./validation/recovery";
 export * from "./validation/billing";
 export * from "./validation/notifications";
 export * from "./validation/feedback";
+export * from "./validation/availabilityRequests";
+export * from "./validation/doctorMedicineOrders";

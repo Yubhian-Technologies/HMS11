@@ -8,6 +8,8 @@ import { CreateTemplateDialog } from "@/features/scheduling/components/CreateTem
 import { TemplateStatusToggle } from "@/features/scheduling/components/TemplateStatusToggle";
 import { SlotApproveRejectButtons } from "@/features/scheduling/components/SlotApproveRejectButtons";
 import { BulkApproveButton } from "@/features/scheduling/components/BulkApproveButton";
+import { listRequestsForDoctor } from "@/features/availability-requests/services/read";
+import { RespondAvailabilityDialog } from "@/features/availability-requests/components/RespondAvailabilityDialog";
 
 const WEEKDAY_LABEL: Record<string, string> = {
   monday: "Monday",
@@ -25,9 +27,13 @@ export default async function DoctorAvailabilityPage() {
   const { uid: doctorId, hospitalId, branchId } = session;
 
   const dates = rollingWindowDates();
-  const [templates, slots] = await Promise.all([
+  const [templates, slots, availabilityRequests] = await Promise.all([
     listTemplatesForDoctor(doctorId),
     listSlotsForDoctorInRange(doctorId, dates),
+    // Isolated: this is a newer collection than templates/slots — if its
+    // composite index hasn't been deployed yet, that must not crash the
+    // whole page and take the (working) template/slot sections down with it.
+    listRequestsForDoctor(doctorId).catch(() => []),
   ]);
 
   return (
@@ -36,6 +42,48 @@ export default async function DoctorAvailabilityPage() {
         <h1 className="text-xl font-semibold text-foreground">My Availability</h1>
         <CreateTemplateDialog hospitalId={hospitalId} branchId={branchId} doctorId={doctorId} />
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Availability Requests from Office</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3">
+          {availabilityRequests.length === 0 ? (
+            <p className="py-6 text-center text-sm text-muted-foreground">No requests from Office yet.</p>
+          ) : (
+            availabilityRequests.map((req) => (
+              <div
+                key={req.id}
+                className="flex items-center justify-between rounded-md border border-border p-3 text-sm"
+              >
+                <div>
+                  <p className="font-medium text-foreground">{req.date}</p>
+                  <p className="text-muted-foreground">
+                    Requested {req.morningRequested} morning / {req.afternoonRequested} afternoon
+                  </p>
+                  {req.status === "responded" ? (
+                    <p className="text-foreground">
+                      You confirmed {req.morningAvailable} morning / {req.afternoonAvailable} afternoon —{" "}
+                      {req.isAvailable ? "Available" : "Not available"}
+                    </p>
+                  ) : null}
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge variant={req.status === "responded" ? "default" : "destructive"}>{req.status}</Badge>
+                  {req.status === "pending" ? (
+                    <RespondAvailabilityDialog
+                      hospitalId={hospitalId}
+                      requestId={req.id}
+                      morningRequested={req.morningRequested}
+                      afternoonRequested={req.afternoonRequested}
+                    />
+                  ) : null}
+                </div>
+              </div>
+            ))
+          )}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
@@ -53,11 +101,11 @@ export default async function DoctorAvailabilityPage() {
                 className="flex items-center justify-between rounded-md border border-border p-3 text-sm"
               >
                 <p className="font-medium text-foreground">
-                  {WEEKDAY_LABEL[tpl.weekday]} · {tpl.startTime}–{tpl.endTime} · {tpl.slotDurationMinutes}
-                  min slots
+                  {WEEKDAY_LABEL[tpl.weekday]} · {tpl.morningSlots} morning / {tpl.afternoonSlots} afternoon ·{" "}
+                  {tpl.slotDurationMinutes}min slots
                 </p>
                 <div className="flex items-center gap-2">
-                  <Badge variant={tpl.status === "active" ? "default" : "destructive"}>{tpl.status}</Badge>
+                  <Badge variant={tpl.status === "active" ? "success" : "destructive"} className="w-20 justify-center">{tpl.status}</Badge>
                   <TemplateStatusToggle hospitalId={hospitalId} templateId={tpl.id} status={tpl.status} />
                 </div>
               </div>

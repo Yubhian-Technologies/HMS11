@@ -32,7 +32,6 @@ export function ConsultationForm({
   branchId,
   appointmentId,
   labTests,
-  beds,
   departments,
   doctors,
 }: {
@@ -40,7 +39,6 @@ export function ConsultationForm({
   branchId: string;
   appointmentId: string;
   labTests: { id: string; name: string; price: number }[];
-  beds: { id: string; bedNumber: string }[];
   departments: { id: string; name: string }[];
   doctors: { id: string; name: string }[];
 }) {
@@ -51,7 +49,6 @@ export function ConsultationForm({
   const [selectedTestIds, setSelectedTestIds] = useState<string[]>([]);
 
   const [admitEnabled, setAdmitEnabled] = useState(false);
-  const [bedId, setBedId] = useState("");
 
   const [followUpEnabled, setFollowUpEnabled] = useState(false);
   const [followUpDate, setFollowUpDate] = useState("");
@@ -96,7 +93,7 @@ export function ConsultationForm({
           ? items.map((it) => ({ ...it, durationDays: Number(it.durationDays) }))
           : undefined,
         labTestIds: selectedTestIds.length ? selectedTestIds : undefined,
-        admission: admitEnabled && bedId ? { bedId } : undefined,
+        admissionRequested: admitEnabled || undefined,
         followUp: followUpEnabled && followUpDate ? { scheduledDate: followUpDate } : undefined,
         certificate:
           certEnabled && certReason && certFrom && certTo
@@ -232,18 +229,9 @@ export function ConsultationForm({
               Recommend admission
             </label>
             {admitEnabled ? (
-              <Select value={bedId} onValueChange={(v) => setBedId(v ?? "")}>
-                <SelectTrigger className="w-64">
-                  <SelectValue placeholder="Select a bed" />
-                </SelectTrigger>
-                <SelectContent>
-                  {beds.map((b) => (
-                    <SelectItem key={b.id} value={b.id}>
-                      Bed {b.bedNumber}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <p className="text-xs text-muted-foreground">
+                Office will check bed availability and assign a room once you complete this consultation.
+              </p>
             ) : null}
           </section>
 

@@ -3,19 +3,26 @@ import { WEEKDAYS } from "../types/base";
 
 const BreakSchema = z.object({ start: z.string().min(1), end: z.string().min(1) }).strict();
 
-/** FR-4.1. admin (delegated) or doctor (own) — docs/08-permission-matrix.md. */
+/**
+ * FR-4.1. admin (delegated) or doctor (own) — docs/08-permission-matrix.md.
+ * Count-based, not a picked time range — see AVAILABILITY_WINDOWS.
+ */
 export const CreateAvailabilityTemplateRequest = z
   .object({
     hospitalId: z.string().min(1),
     branchId: z.string().min(1),
     doctorId: z.string().min(1),
     weekday: z.enum(WEEKDAYS),
-    startTime: z.string().min(1),
-    endTime: z.string().min(1),
+    morningSlots: z.number().int().min(0),
+    afternoonSlots: z.number().int().min(0),
     slotDurationMinutes: z.number().int().positive(),
     breaks: z.array(BreakSchema).default([]),
   })
-  .strict();
+  .strict()
+  .refine((v) => v.morningSlots > 0 || v.afternoonSlots > 0, {
+    message: "At least one of morning or afternoon slots must be greater than 0.",
+    path: ["morningSlots"],
+  });
 export type CreateAvailabilityTemplateRequest = z.infer<typeof CreateAvailabilityTemplateRequest>;
 
 export const CreateAvailabilityTemplateResponse = z.object({ templateId: z.string() });

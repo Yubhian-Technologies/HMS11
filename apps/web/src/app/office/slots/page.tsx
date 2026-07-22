@@ -3,7 +3,8 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getSession } from "@/lib/auth/require-role";
 import { rollingWindowDates, formatDateLabel } from "@/lib/rolling-window";
-import { listStaffByRole } from "@/features/staff/services/read";
+import { listStaffByRole, listDoctorProfiles } from "@/features/staff/services/read";
+import { listDepartments } from "@/features/departments/services/read";
 import { listSlotsForBranchInRange } from "@/features/scheduling/services/read";
 import { CreateManualSlotDialog } from "@/features/scheduling/components/CreateManualSlotDialog";
 import { BlockUnblockButton } from "@/features/scheduling/components/BlockUnblockButton";
@@ -14,12 +15,15 @@ export default async function OfficeSlotsPage() {
   const { hospitalId, branchId } = session;
 
   const dates = rollingWindowDates();
-  const [allDoctors, slots] = await Promise.all([
+  const [allDoctors, slots, departments, doctorProfiles] = await Promise.all([
     listStaffByRole(hospitalId, "doctor"),
     listSlotsForBranchInRange(branchId, dates),
+    listDepartments(hospitalId),
+    listDoctorProfiles(hospitalId),
   ]);
   const doctors = allDoctors.filter((d) => d.branchId === branchId);
   const doctorName = new Map(doctors.map((d) => [d.id, d.name]));
+  const departmentIdByDoctor = new Map(doctorProfiles.map((p) => [p.id, p.departmentId]));
 
   return (
     <div className="flex flex-col gap-6">
@@ -28,7 +32,12 @@ export default async function OfficeSlotsPage() {
         <CreateManualSlotDialog
           hospitalId={hospitalId}
           branchId={branchId}
-          doctors={doctors.map((d) => ({ id: d.id, name: d.name }))}
+          departments={departments.filter((dept) => dept.status === "active").map((d) => ({ id: d.id, name: d.name }))}
+          doctors={doctors.map((d) => ({
+            id: d.id,
+            name: d.name,
+            departmentId: departmentIdByDoctor.get(d.id) ?? "",
+          }))}
         />
       </div>
 
