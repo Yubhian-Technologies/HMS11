@@ -4,6 +4,7 @@ import { CreateAvailabilityRequestRequest, CreateAvailabilityRequestResponse } f
 import { writeWithAudit } from "@hms/shared-server";
 import { requireCallerRole } from "../services/callable-auth";
 import { assertOwnHospital, assertBranchExists } from "../services/scope-checks";
+import { sendNotification } from "../notifications/sendNotification";
 
 /** office only, own branch — asks a doctor to confirm capacity for a date. */
 export const createAvailabilityRequest = onCall(async (request) => {
@@ -41,6 +42,15 @@ export const createAvailabilityRequest = onCall(async (request) => {
     },
     action: "create",
     context: { actorId: caller.uid, actorRole: caller.role, hospitalId: input.hospitalId },
+  });
+
+  await sendNotification({
+    userId: input.doctorId,
+    type: "availabilityRequest",
+    title: "Office needs your availability",
+    body: `Office asked for ${input.morningRequested} morning / ${input.afternoonRequested} afternoon slots on ${input.date}.`,
+    hospitalId: input.hospitalId,
+    relatedEntityId: requestId,
   });
 
   return CreateAvailabilityRequestResponse.parse({ requestId });
