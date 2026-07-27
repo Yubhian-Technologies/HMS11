@@ -61,6 +61,7 @@ export function MedicineInventoryFormDialog({
       if (existing) {
         await updateMedicineInventoryItem({
           hospitalId,
+          branchId,
           itemId: existing.id,
           batchNumber: form.batchNumber,
           expiryDate: form.expiryDate,

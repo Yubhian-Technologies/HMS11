@@ -29,8 +29,6 @@ export type ModuleName =
   | "patients"
   | "appointments"
   | "emergencyQueue"
-  | "vitals"
-  | "consultations"
   | "prescriptions"
   | "labOrders"
   | "labReports"
@@ -57,22 +55,36 @@ const CR: Action[] = ["create", "read"];
 
 export const PERMISSION_MATRIX: Record<ModuleName, ModulePermissions> = {
   hospitals: { super_admin: CRUS, admin: R },
-  branches: { super_admin: CRUS, admin: CRUS, office: R, reception: R, doctor: R, pharmacy: R, lab: R },
-  staffAccounts: { super_admin: R, admin: CRUS, office: R, reception: R, doctor: R, pharmacy: R, lab: R },
-  departments: { super_admin: R, admin: CRUS, office: R, reception: R, doctor: R, patient: R },
-  hospitalSettings: { super_admin: R, admin: CRU, office: R, reception: R, doctor: R, patient: R },
-  roomsWardsBeds: { super_admin: R, admin: CRUS, office: RU, reception: R, doctor: R },
+  branches: {
+    super_admin: CRUS, admin: CRUS, office: R, reception: R, nurse: R, doctor: R, pharmacy: R, lab: R,
+  },
+  staffAccounts: {
+    super_admin: R, admin: CRUS, office: R, reception: R, nurse: R, doctor: R, pharmacy: R, lab: R,
+  },
+  departments: { super_admin: R, admin: CRUS, office: R, reception: R, nurse: R, doctor: R, patient: R },
+  hospitalSettings: { super_admin: R, admin: CRU, office: R, reception: R, nurse: R, doctor: R, patient: R },
+  roomsWardsBeds: { super_admin: R, admin: CRUS, office: RU, reception: R, nurse: RU, doctor: R },
   labTestMaster: { super_admin: R, admin: CRUS, doctor: R, lab: R, patient: R },
   medicineInventory: { super_admin: R, admin: CRUS, pharmacy: CRU },
   doctorAvailabilityTemplates: { super_admin: R, admin: CRU, office: R, reception: R, doctor: CRU },
   doctorSlots: { super_admin: R, admin: R, office: ["read", "statusChange"], reception: R, doctor: ["statusChange"], patient: R },
   availabilityRequests: { super_admin: R, admin: R, office: CR, doctor: RU },
   doctorMedicineOrders: { super_admin: R, admin: R, doctor: CR, pharmacy: R },
-  patients: { super_admin: R, admin: R, office: R, reception: CRU, doctor: R, pharmacy: R, lab: R, patient: CRU },
-  appointments: { super_admin: R, admin: R, office: CRUS, reception: CRU, doctor: RU, patient: CR },
+  patients: {
+    super_admin: R, admin: R, office: R, reception: CRU, nurse: R, doctor: R, pharmacy: R, lab: R, patient: CRU,
+  },
+  /**
+   * `appointments` absorbs the former standalone `vitals`/`consultations`
+   * modules — both are embedded fields on the appointment document now
+   * (docs/10-collections-schema.md §10.6), so there's nothing left for those
+   * two module rows to gate independently. Nurse owns the vitals-capture
+   * step (moved off Reception); Doctor's `RU` covers writing
+   * `consultationSummary`.
+   */
+  appointments: {
+    super_admin: R, admin: R, office: CRUS, reception: CRU, nurse: RU, doctor: RU, patient: CR,
+  },
   emergencyQueue: { super_admin: R, admin: R, office: CRU, reception: CRU, doctor: RU },
-  vitals: { super_admin: R, admin: R, reception: CR, doctor: R, patient: R },
-  consultations: { super_admin: R, admin: R, doctor: CRU, patient: R },
   prescriptions: { super_admin: R, admin: R, doctor: CR, pharmacy: RU, patient: R },
   labOrders: {
     super_admin: R,
@@ -86,13 +98,17 @@ export const PERMISSION_MATRIX: Record<ModuleName, ModulePermissions> = {
   medicineDispenses: { super_admin: R, admin: R, pharmacy: CRU, patient: R },
   medicineLogs: { super_admin: R, admin: R, doctor: R, patient: CRU },
   healthUpdates: { super_admin: R, admin: R, doctor: R, patient: CR },
-  admissions: { super_admin: R, admin: R, office: RU, reception: R, doctor: CRUS, patient: R },
+  // Nurse does ward-care status updates during an admission (RU), not bed
+  // assignment/discharge — those stay Office/Doctor respectively.
+  admissions: {
+    super_admin: R, admin: R, office: RU, reception: R, nurse: RU, doctor: CRUS, patient: R,
+  },
   followUps: { super_admin: R, admin: R, office: R, reception: R, doctor: CRU, patient: R },
   medicalCertificates: { super_admin: R, admin: R, doctor: CR, patient: R },
   referrals: { super_admin: R, admin: R, doctor: CR, patient: R },
   invoices: { super_admin: R, admin: RU, reception: RU, patient: R },
   notifications: {
-    super_admin: R, admin: R, office: R, reception: R, doctor: R, pharmacy: R, lab: R, patient: R,
+    super_admin: R, admin: R, office: R, reception: R, nurse: R, doctor: R, pharmacy: R, lab: R, patient: R,
   },
   feedback: { super_admin: R, admin: RU, doctor: R, patient: CR },
   auditLogs: { super_admin: R, admin: R },

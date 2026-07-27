@@ -4,8 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getSession } from "@/lib/auth/require-role";
 import { getAppointment } from "@/features/appointments/services/read";
 import { getPatientProfile } from "@/features/patients/services/read";
-import { getVitalsForAppointment } from "@/features/reception/services/read";
-import { getPatientHistory } from "@/features/consultations/services/read";
+import { getPatientHistory, listPastConsultedAppointments } from "@/features/consultations/services/read";
 import { listLabTests } from "@/features/lab-tests/services/read";
 import { listDepartments } from "@/features/departments/services/read";
 import { listStaffByRole } from "@/features/staff/services/read";
@@ -24,17 +23,18 @@ export default async function ConsultPage({
   const { appointmentId } = await searchParams;
   if (!appointmentId) redirect("/doctor");
 
-  const appointment = await getAppointment(appointmentId);
+  const appointment = await getAppointment(hospitalId, branchId, appointmentId);
   if (!appointment || appointment.doctorId !== doctorId) {
     return <p className="text-sm text-muted-foreground">Appointment not found.</p>;
   }
 
-  const [patient, vitals, history, labTests, departments, doctors, healthUpdates, medicineLogs] =
+  const vitals = appointment.vitals;
+  const [patient, history, pastConsultations, labTests, departments, doctors, healthUpdates, medicineLogs] =
     await Promise.all([
       getPatientProfile(appointment.patientId),
-      getVitalsForAppointment(appointmentId),
       getPatientHistory(appointment.patientId, hospitalId),
-      listLabTests(branchId),
+      listPastConsultedAppointments(appointment.patientId, hospitalId),
+      listLabTests(hospitalId, branchId),
       listDepartments(hospitalId),
       listStaffByRole(hospitalId, "doctor"),
       listHealthUpdates(appointment.patientId),
@@ -78,11 +78,11 @@ export default async function ConsultPage({
             <CardTitle className="text-base">History</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-3 text-sm">
-            {history.consultations.length === 0 ? (
+            {pastConsultations.length === 0 ? (
               <p className="text-muted-foreground">No prior consultations at this hospital.</p>
             ) : (
-              history.consultations.map((c) => (
-                <div key={c.id} className="rounded-md border border-border p-2">
+              pastConsultations.map((c) => (
+                <div key={c.appointmentId} className="rounded-md border border-border p-2">
                   <p className="font-medium text-foreground">{c.diagnosis}</p>
                   <p className="text-muted-foreground">{c.clinicalNotes}</p>
                 </div>

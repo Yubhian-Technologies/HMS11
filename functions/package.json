@@ -12,7 +12,8 @@
     "serve": "pnpm build && firebase emulators:start --only functions",
     "deploy": "pnpm --dir .. build:shared && pnpm build && CI=true firebase deploy --only functions",
     "typecheck": "tsc --noEmit",
-    "seed:super-admin": "node scripts/seed-super-admin.mjs"
+    "seed:super-admin": "node scripts/seed-super-admin.mjs",
+    "seed:demo": "node scripts/seed-demo-data.mjs"
   },
   "dependencies": {
     "@hms/shared": "workspace:*",

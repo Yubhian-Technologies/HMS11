@@ -1,6 +1,6 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { getFirestore } from "firebase-admin/firestore";
-import { UpdateDoctorProfileRequest } from "@hms/shared";
+import { UpdateDoctorProfileRequest, branchCollection, doctorPath, hospitalCollection } from "@hms/shared";
 import { writeWithAudit } from "@hms/shared-server";
 import { requireCallerRole } from "../services/callable-auth";
 
@@ -14,15 +14,25 @@ export const updateDoctorProfile = onCall(async (request) => {
   }
 
   const db = getFirestore();
-  const ref = db.collection("doctorProfiles").doc(uid);
+  // The doctor extension doc is nested under its own branch, but this
+  // request only carries hospitalId/uid — look up the branch from the
+  // (flat, unchanged) users/{uid} doc, same as createDoctorAccount wrote it.
+  const userSnap = await db.collection("users").doc(uid).get();
+  const user = userSnap.data();
+  if (!userSnap.exists || user?.hospitalId !== hospitalId || user?.role !== "doctor") {
+    throw new HttpsError("not-found", "Doctor profile not found in this hospital.");
+  }
+  const branchId = user.branchId as string;
+
+  const ref = db.doc(doctorPath(hospitalId, branchId, uid));
   const snap = await ref.get();
-  if (!snap.exists || snap.data()?.hospitalId !== hospitalId) {
+  if (!snap.exists) {
     throw new HttpsError("not-found", "Doctor profile not found in this hospital.");
   }
 
   if (fields.departmentId) {
-    const deptSnap = await db.collection("departments").doc(fields.departmentId).get();
-    if (!deptSnap.exists || deptSnap.data()?.hospitalId !== hospitalId) {
+    const deptSnap = await db.collection(hospitalCollection(hospitalId, "departments")).doc(fields.departmentId).get();
+    if (!deptSnap.exists) {
       throw new HttpsError("not-found", "Department not found in this hospital.");
     }
   }
@@ -33,7 +43,7 @@ export const updateDoctorProfile = onCall(async (request) => {
   }
 
   await writeWithAudit(db, {
-    collection: "doctorProfiles",
+    collection: branchCollection(hospitalId, branchId, "doctors"),
     docId: uid,
     data: updates,
     action: "update",

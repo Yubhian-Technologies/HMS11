@@ -29,7 +29,7 @@ export default async function AdminFeedbackPage() {
                   </div>
                   <p className="text-muted-foreground">{f.comment || "No comment provided."}</p>
                 </div>
-                <ResolveFeedbackButtons hospitalId={hospitalId} feedbackId={f.id} status={f.status} />
+                <ResolveFeedbackButtons hospitalId={hospitalId} branchId={f.branchId!} feedbackId={f.id} status={f.status} />
               </div>
             ))
           )}

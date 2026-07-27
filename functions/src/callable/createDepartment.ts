@@ -1,6 +1,6 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { getFirestore } from "firebase-admin/firestore";
-import { CreateDepartmentRequest, CreateDepartmentResponse } from "@hms/shared";
+import { CreateDepartmentRequest, CreateDepartmentResponse, hospitalCollection } from "@hms/shared";
 import { writeWithAudit } from "@hms/shared-server";
 import { requireCallerRole } from "../services/callable-auth";
 
@@ -15,7 +15,7 @@ export const createDepartment = onCall(async (request) => {
 
   const db = getFirestore();
   const departmentId = await writeWithAudit(db, {
-    collection: "departments",
+    collection: hospitalCollection(input.hospitalId, "departments"),
     data: {
       name: input.name,
       hospitalId: input.hospitalId,

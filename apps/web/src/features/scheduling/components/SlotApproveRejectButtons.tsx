@@ -6,14 +6,24 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { setSlotStatus } from "../services/scheduling";
 
-export function SlotApproveRejectButtons({ hospitalId, slotId }: { hospitalId: string; slotId: string }) {
+export function SlotApproveRejectButtons({
+  hospitalId,
+  branchId,
+  doctorId,
+  slotId,
+}: {
+  hospitalId: string;
+  branchId: string;
+  doctorId: string;
+  slotId: string;
+}) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
   function act(status: "approved" | "rejected") {
     startTransition(async () => {
       try {
-        await setSlotStatus({ hospitalId, slotId, status });
+        await setSlotStatus({ hospitalId, branchId, doctorId, slotId, status });
         toast.success(status === "approved" ? "Slot approved." : "Slot rejected.");
         router.refresh();
       } catch (err) {

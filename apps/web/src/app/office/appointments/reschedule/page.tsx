@@ -14,19 +14,19 @@ export default async function RescheduleAppointmentPage({
   searchParams: Promise<{ appointmentId?: string }>;
 }) {
   const session = await getSession();
-  const hospitalId = session?.hospitalId;
-  if (!hospitalId) redirect("/login");
+  if (!session?.hospitalId || !session.branchId) redirect("/login");
+  const { hospitalId, branchId } = session;
 
   const { appointmentId } = await searchParams;
   if (!appointmentId) redirect("/office/appointments");
 
-  const appointment = await getAppointment(appointmentId);
+  const appointment = await getAppointment(hospitalId, branchId, appointmentId);
   if (!appointment) {
     return <p className="text-sm text-muted-foreground">Appointment not found.</p>;
   }
 
   const dates = rollingWindowDates();
-  const slots = (await listSlotsForDoctorInRange(appointment.doctorId, dates)).filter(
+  const slots = (await listSlotsForDoctorInRange(hospitalId, branchId, appointment.doctorId, dates)).filter(
     (s) => s.status === "approved",
   );
 
@@ -52,6 +52,7 @@ export default async function RescheduleAppointmentPage({
                       <span className="text-sm text-foreground">{SESSION_LABEL[slot.session]}</span>
                       <RescheduleSlotButton
                         hospitalId={hospitalId}
+                        branchId={branchId}
                         appointmentId={appointment.id}
                         newDate={slot.date}
                         newSession={slot.session}

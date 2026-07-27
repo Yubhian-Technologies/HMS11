@@ -21,10 +21,12 @@ import { uploadLabReport } from "../services/lab";
 
 export function UploadReportDialog({
   hospitalId,
+  branchId,
   patientId,
   labOrderId,
 }: {
   hospitalId: string;
+  branchId: string;
   patientId: string;
   labOrderId: string;
 }) {
@@ -44,7 +46,7 @@ export function UploadReportDialog({
       await uploadBytes(storageRef, file, { contentType: file.type });
       const fileUrl = await getDownloadURL(storageRef);
 
-      await uploadLabReport({ hospitalId, labOrderId, fileUrl, summaryNotes: summaryNotes || undefined });
+      await uploadLabReport({ hospitalId, branchId, labOrderId, fileUrl, summaryNotes: summaryNotes || undefined });
       toast.success("Report uploaded.");
       setFile(null);
       setSummaryNotes("");

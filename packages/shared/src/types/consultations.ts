@@ -1,18 +1,13 @@
 import type { BaseDoc, Timestamp } from "./base";
 
 /**
- * consultations/{id}. Append-only per docs/09-firestore-design.md §9.5 —
- * a correction is a new consultation referencing the original via
- * `supersedesConsultationId`, never an edit to history.
+ * The standalone `consultations` collection is gone — a consultation's
+ * diagnosis/clinical notes are now the `consultationSummary` embedded
+ * directly on the triggering `appointments/{id}` document (see
+ * docs/10-collections-schema.md §10.6). Every collection below that used to
+ * reference `consultationId` now references `appointmentId` instead, since
+ * that's the one durable id that still exists.
  */
-export interface Consultation extends BaseDoc {
-  appointmentId: string;
-  patientId: string;
-  doctorId: string;
-  diagnosis: string;
-  clinicalNotes: string;
-  supersedesConsultationId: string | null;
-}
 
 export interface PrescriptionItem {
   medicineName: string;
@@ -24,7 +19,7 @@ export interface PrescriptionItem {
 
 /** prescriptions/{id}. */
 export interface Prescription extends BaseDoc {
-  consultationId: string;
+  appointmentId: string;
   patientId: string;
   doctorId: string;
   items: PrescriptionItem[];
@@ -32,13 +27,14 @@ export interface Prescription extends BaseDoc {
 
 /**
  * labOrders/{id} — Module 10 owns the pipeline status transitions from here
- * on. `consultationId` is null for a standalone order assigned by the doctor
- * outside the consult flow (Doctor Labs module); such orders start at
- * "pendingPayment" and only enter the normal pipeline once Office marks them
- * paid (markLabOrderPaid flips "pendingPayment" -> "pending").
+ * on. `appointmentId` is set for every order, including a standalone one
+ * assigned by the doctor outside the consult flow (Doctor Labs module);
+ * such orders start at "pendingPayment" and only enter the normal pipeline
+ * once Office marks them paid (markLabOrderPaid flips "pendingPayment" ->
+ * "pending").
  */
 export interface LabOrder extends BaseDoc {
-  consultationId: string | null;
+  appointmentId: string;
   patientId: string;
   doctorId: string;
   testId: string;
@@ -70,10 +66,14 @@ export interface DischargeSummary {
  * the actual bed, which is what advances status to "admitted".
  */
 export interface Admission extends BaseDoc {
-  consultationId: string;
+  appointmentId: string;
   patientId: string;
   doctorId: string;
   bedId: string | null;
+  /** Assigned ward-care nurse — set by updateWardCareStatus, read by the Nurse's own-ward queue. */
+  nurseId: string | null;
+  /** Nurse's latest ward-care progress note (updateWardCareStatus) — not append-only history, just the current note. */
+  careNotes: string | null;
   admittedAt: Timestamp | null;
   dischargedAt: Timestamp | null;
   dischargeSummary: DischargeSummary | null;
@@ -84,7 +84,7 @@ export interface Admission extends BaseDoc {
 export interface FollowUp extends BaseDoc {
   patientId: string;
   doctorId: string;
-  sourceConsultationId: string;
+  sourceAppointmentId: string;
   scheduledDate: string;
   resultingAppointmentId: string | null;
 }
@@ -100,7 +100,7 @@ export interface FollowUp extends BaseDoc {
 export interface MedicalCertificate extends BaseDoc {
   patientId: string;
   doctorId: string;
-  consultationId: string;
+  appointmentId: string;
   reason: string;
   restFromDate: string;
   restToDate: string;

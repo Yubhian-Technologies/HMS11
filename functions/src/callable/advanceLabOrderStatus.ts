@@ -1,6 +1,6 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { getFirestore } from "firebase-admin/firestore";
-import { AdvanceLabOrderStatusRequest } from "@hms/shared";
+import { AdvanceLabOrderStatusRequest, branchCollection } from "@hms/shared";
 import { writeWithAudit } from "@hms/shared-server";
 import { requireCallerRole } from "../services/callable-auth";
 import { assertOwnHospital } from "../services/scope-checks";
@@ -14,17 +14,17 @@ const SEQUENCE = ["pending", "sampleCollected", "processing", "completed", "veri
  */
 export const advanceLabOrderStatus = onCall(async (request) => {
   const caller = requireCallerRole(request, ["lab"]);
-  const { hospitalId, labOrderId, toStatus } = AdvanceLabOrderStatusRequest.parse(request.data);
+  const { hospitalId, branchId, labOrderId, toStatus } = AdvanceLabOrderStatusRequest.parse(request.data);
   assertOwnHospital(caller, hospitalId);
+  if (caller.branchId !== branchId) {
+    throw new HttpsError("permission-denied", "You can only manage lab orders in your own branch.");
+  }
 
   const db = getFirestore();
-  const snap = await db.collection("labOrders").doc(labOrderId).get();
+  const snap = await db.collection(branchCollection(hospitalId, branchId, "labOrders")).doc(labOrderId).get();
   const order = snap.data();
-  if (!snap.exists || order?.hospitalId !== hospitalId) {
+  if (!snap.exists) {
     throw new HttpsError("not-found", "Lab order not found.");
-  }
-  if (caller.branchId !== order?.branchId) {
-    throw new HttpsError("permission-denied", "You can only manage lab orders in your own branch.");
   }
 
   const currentIndex = SEQUENCE.indexOf(order?.status);
@@ -37,7 +37,7 @@ export const advanceLabOrderStatus = onCall(async (request) => {
   }
 
   await writeWithAudit(db, {
-    collection: "labOrders",
+    collection: branchCollection(hospitalId, branchId, "labOrders"),
     docId: labOrderId,
     data: { status: toStatus },
     action: "statusChange",

@@ -15,7 +15,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { recordVitals } from "../services/reception";
+import { recordVitals } from "../services/nurse";
 
 const EMPTY_FORM = {
   weightKg: "",
@@ -25,6 +25,7 @@ const EMPTY_FORM = {
   sugarMgDl: "",
   temperatureC: "",
   spo2: "",
+  respiratoryRate: "",
   chiefComplaint: "",
   notes: "",
 };
@@ -72,13 +73,14 @@ export function RecordVitalsDialog({
         heightCm: Number(form.heightCm),
         bloodPressure: form.bloodPressure,
         pulse: Number(form.pulse),
-        sugarMgDl: Number(form.sugarMgDl),
+        sugarMgDl: form.sugarMgDl ? Number(form.sugarMgDl) : null,
         temperatureC: Number(form.temperatureC),
         spo2: Number(form.spo2),
+        respiratoryRate: form.respiratoryRate ? Number(form.respiratoryRate) : null,
         chiefComplaint: form.chiefComplaint,
         notes: form.notes,
       });
-      toast.success("Vitals recorded — visible to the doctor now.");
+      toast.success("Vitals recorded — sent to the doctor now.");
       setForm(EMPTY_FORM);
       setOpen(false);
       router.refresh();
@@ -96,7 +98,7 @@ export function RecordVitalsDialog({
         <form onSubmit={handleSubmit}>
           <DialogHeader>
             <DialogTitle>Vitals — {patientName}</DialogTitle>
-            <DialogDescription>FR-8.2 — visible to the doctor immediately (FR-8.3).</DialogDescription>
+            <DialogDescription>Visible to the doctor immediately once saved.</DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-3 gap-4">
@@ -123,10 +125,10 @@ export function RecordVitalsDialog({
                 <Input id="v-pulse" type="number" min="0" required {...field("pulse")} />
               </div>
             </div>
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-4 gap-4">
               <div className="grid gap-1.5">
                 <Label htmlFor="v-sugar">Sugar (mg/dL)</Label>
-                <Input id="v-sugar" type="number" min="0" required {...field("sugarMgDl")} />
+                <Input id="v-sugar" type="number" min="0" {...field("sugarMgDl")} />
               </div>
               <div className="grid gap-1.5">
                 <Label htmlFor="v-temp">Temp (°C)</Label>
@@ -135,6 +137,10 @@ export function RecordVitalsDialog({
               <div className="grid gap-1.5">
                 <Label htmlFor="v-spo2">SpO2 (%)</Label>
                 <Input id="v-spo2" type="number" min="0" max="100" required {...field("spo2")} />
+              </div>
+              <div className="grid gap-1.5">
+                <Label htmlFor="v-resp">Resp. rate</Label>
+                <Input id="v-resp" type="number" min="0" {...field("respiratoryRate")} />
               </div>
             </div>
             <div className="grid gap-1.5">

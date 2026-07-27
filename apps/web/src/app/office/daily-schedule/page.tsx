@@ -6,7 +6,7 @@ import { rollingWindowDates, formatDateLabel } from "@/lib/rolling-window";
 import { listBranchAppointmentsForDates } from "@/features/appointments/services/read";
 import { listStaffByRole } from "@/features/staff/services/read";
 
-const SCHEDULED_STATUSES = new Set(["approved", "checkedIn", "completed"]);
+const SCHEDULED_STATUSES = new Set(["BOOKED", "CHECKED_IN", "VITALS_COMPLETED", "CONSULTING", "COMPLETED"]);
 const SESSION_LABEL: Record<string, string> = { morning: "Morning", afternoon: "Afternoon" };
 const SESSION_ORDER: Record<string, number> = { morning: 0, afternoon: 1 };
 
@@ -17,7 +17,7 @@ export default async function DailySchedulePage() {
 
   const dates = rollingWindowDates();
   const [appointments, doctors] = await Promise.all([
-    listBranchAppointmentsForDates(branchId, dates),
+    listBranchAppointmentsForDates(hospitalId, branchId, dates),
     listStaffByRole(hospitalId, "doctor"),
   ]);
   const doctorName = new Map(doctors.map((d) => [d.id, d.name]));
@@ -55,7 +55,7 @@ export default async function DailySchedulePage() {
                         {appt.type === "emergency" ? " · Emergency" : ""}
                       </p>
                     </div>
-                    <Badge variant={appt.status === "completed" ? "success" : "default"}>{appt.status}</Badge>
+                    <Badge variant={appt.status === "COMPLETED" ? "success" : "default"}>{appt.status}</Badge>
                   </div>
                 ))
               )}

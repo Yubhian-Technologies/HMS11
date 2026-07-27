@@ -1,6 +1,6 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { getFirestore } from "firebase-admin/firestore";
-import { AssignMedicineOrderRequest, AssignMedicineOrderResponse } from "@hms/shared";
+import { AssignMedicineOrderRequest, AssignMedicineOrderResponse, branchCollection } from "@hms/shared";
 import { writeWithAudit } from "@hms/shared-server";
 import { requireCallerRole } from "../services/callable-auth";
 import { assertOwnHospital } from "../services/scope-checks";
@@ -25,7 +25,7 @@ export const assignMedicineOrder = onCall(async (request) => {
   }
 
   const orderId = await writeWithAudit(db, {
-    collection: "doctorMedicineOrders",
+    collection: branchCollection(input.hospitalId, input.branchId, "doctorMedicineOrders"),
     data: {
       patientId: input.patientId,
       doctorId: caller.uid,

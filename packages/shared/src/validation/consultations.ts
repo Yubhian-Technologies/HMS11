@@ -51,7 +51,7 @@ export const SubmitConsultationRequest = z
 export type SubmitConsultationRequest = z.infer<typeof SubmitConsultationRequest>;
 
 export const SubmitConsultationResponse = z.object({
-  consultationId: z.string(),
+  appointmentId: z.string(),
   prescriptionId: z.string().nullable(),
   labOrderIds: z.array(z.string()),
   admissionId: z.string().nullable(),

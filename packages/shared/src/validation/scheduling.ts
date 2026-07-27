@@ -38,9 +38,17 @@ export type CreateAvailabilityTemplateRequest = z.infer<typeof CreateAvailabilit
 export const CreateAvailabilityTemplateResponse = z.object({ templateId: z.string() });
 export type CreateAvailabilityTemplateResponse = z.infer<typeof CreateAvailabilityTemplateResponse>;
 
+/**
+ * `branchId`/`doctorId` required — `availabilityTemplates` nests under
+ * `.../doctors/{doctorId}/availabilityTemplates/{templateId}`, and admin
+ * (delegated case) isn't branch-scoped by claim, so both must come from
+ * the request rather than being inferred.
+ */
 export const SetAvailabilityTemplateStatusRequest = z
   .object({
     hospitalId: z.string().min(1),
+    branchId: z.string().min(1),
+    doctorId: z.string().min(1),
     templateId: z.string().min(1),
     status: z.enum(["active", "disabled"]),
   })
@@ -51,9 +59,16 @@ export type SetAvailabilityTemplateStatusRequest = z.infer<typeof SetAvailabilit
  * FR-4.4 / FR-4.5. "approved"/"rejected" — doctor, own session pool only.
  * "blocked" — office, own branch. See docs/13-cloud-functions.md.
  */
+/**
+ * `branchId`/`doctorId` required — `slots` nests under
+ * `.../doctors/{doctorId}/slots/{slotId}`; Office isn't the doctor so can't
+ * derive `doctorId` from its own claims, and must state which branch too.
+ */
 export const SetSlotStatusRequest = z
   .object({
     hospitalId: z.string().min(1),
+    branchId: z.string().min(1),
+    doctorId: z.string().min(1),
     slotId: z.string().min(1),
     status: z.enum(["approved", "rejected", "blocked"]),
   })

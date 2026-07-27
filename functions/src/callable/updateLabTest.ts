@@ -1,6 +1,6 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { getFirestore } from "firebase-admin/firestore";
-import { UpdateLabTestRequest } from "@hms/shared";
+import { UpdateLabTestRequest, branchCollection } from "@hms/shared";
 import { writeWithAudit } from "@hms/shared-server";
 import { requireCallerRole } from "../services/callable-auth";
 import { assertOwnHospital } from "../services/scope-checks";
@@ -8,12 +8,12 @@ import { assertOwnHospital } from "../services/scope-checks";
 /** FR-3.6. admin only, own hospital. */
 export const updateLabTest = onCall(async (request) => {
   const caller = requireCallerRole(request, ["admin"]);
-  const { hospitalId, testId, ...fields } = UpdateLabTestRequest.parse(request.data);
+  const { hospitalId, branchId, testId, ...fields } = UpdateLabTestRequest.parse(request.data);
   assertOwnHospital(caller, hospitalId);
 
   const db = getFirestore();
-  const snap = await db.collection("labTestMaster").doc(testId).get();
-  if (!snap.exists || snap.data()?.hospitalId !== hospitalId) {
+  const snap = await db.collection(branchCollection(hospitalId, branchId, "labTestMaster")).doc(testId).get();
+  if (!snap.exists) {
     throw new HttpsError("not-found", "Lab test not found.");
   }
 
@@ -23,7 +23,7 @@ export const updateLabTest = onCall(async (request) => {
   }
 
   await writeWithAudit(db, {
-    collection: "labTestMaster",
+    collection: branchCollection(hospitalId, branchId, "labTestMaster"),
     docId: testId,
     data: updates,
     action: "update",

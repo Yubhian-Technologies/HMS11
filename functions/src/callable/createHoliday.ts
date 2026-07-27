@@ -1,6 +1,6 @@
 import { onCall } from "firebase-functions/v2/https";
 import { getFirestore } from "firebase-admin/firestore";
-import { CreateHolidayRequest, CreateHolidayResponse } from "@hms/shared";
+import { CreateHolidayRequest, CreateHolidayResponse, branchCollection } from "@hms/shared";
 import { writeWithAudit } from "@hms/shared-server";
 import { requireCallerRole } from "../services/callable-auth";
 import { assertOwnHospital, assertBranchExists } from "../services/scope-checks";
@@ -15,7 +15,7 @@ export const createHoliday = onCall(async (request) => {
   await assertBranchExists(db, input.hospitalId, input.branchId);
 
   const holidayId = await writeWithAudit(db, {
-    collection: "holidays",
+    collection: branchCollection(input.hospitalId, input.branchId, "holidays"),
     data: {
       date: input.date,
       reason: input.reason,

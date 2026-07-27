@@ -12,6 +12,7 @@ export const LabOrderStatus = z.enum([
 export const AdvanceLabOrderStatusRequest = z
   .object({
     hospitalId: z.string().min(1),
+    branchId: z.string().min(1),
     labOrderId: z.string().min(1),
     toStatus: LabOrderStatus,
   })
@@ -27,6 +28,7 @@ export type AdvanceLabOrderStatusRequest = z.infer<typeof AdvanceLabOrderStatusR
 export const UploadLabReportRequest = z
   .object({
     hospitalId: z.string().min(1),
+    branchId: z.string().min(1),
     labOrderId: z.string().min(1),
     fileUrl: z.string().min(1),
     summaryNotes: z.string().nullish(),
@@ -47,6 +49,7 @@ export const AssignLabOrderRequest = z
     hospitalId: z.string().min(1),
     branchId: z.string().min(1),
     patientId: z.string().min(1),
+    appointmentId: z.string().min(1),
     testId: z.string().min(1),
   })
   .strict();
@@ -59,6 +62,7 @@ export type AssignLabOrderResponse = z.infer<typeof AssignLabOrderResponse>;
 export const MarkLabOrderPaidRequest = z
   .object({
     hospitalId: z.string().min(1),
+    branchId: z.string().min(1),
     labOrderId: z.string().min(1),
   })
   .strict();

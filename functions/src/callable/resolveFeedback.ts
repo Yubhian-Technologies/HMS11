@@ -1,6 +1,6 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { getFirestore } from "firebase-admin/firestore";
-import { ResolveFeedbackRequest } from "@hms/shared";
+import { ResolveFeedbackRequest, branchCollection } from "@hms/shared";
 import { writeWithAudit } from "@hms/shared-server";
 import { requireCallerRole } from "../services/callable-auth";
 import { assertOwnHospital } from "../services/scope-checks";
@@ -8,18 +8,19 @@ import { assertOwnHospital } from "../services/scope-checks";
 /** FR-17.2. admin only, own hospital — moves a complaint through open -> acknowledged -> resolved. */
 export const resolveFeedback = onCall(async (request) => {
   const caller = requireCallerRole(request, ["admin"]);
-  const { hospitalId, feedbackId, status } = ResolveFeedbackRequest.parse(request.data);
+  const { hospitalId, branchId, feedbackId, status } = ResolveFeedbackRequest.parse(request.data);
   assertOwnHospital(caller, hospitalId);
 
   const db = getFirestore();
-  const snap = await db.collection("feedback").doc(feedbackId).get();
+  const feedbackCollection = branchCollection(hospitalId, branchId, "feedback");
+  const snap = await db.collection(feedbackCollection).doc(feedbackId).get();
   const feedback = snap.data();
-  if (!snap.exists || feedback?.hospitalId !== hospitalId) {
+  if (!snap.exists) {
     throw new HttpsError("not-found", "Feedback not found.");
   }
 
   await writeWithAudit(db, {
-    collection: "feedback",
+    collection: feedbackCollection,
     docId: feedbackId,
     data: { status },
     action: "statusChange",

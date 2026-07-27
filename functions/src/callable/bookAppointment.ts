@@ -1,6 +1,6 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
-import { BookAppointmentRequest, BookAppointmentResponse } from "@hms/shared";
+import { BookAppointmentRequest, BookAppointmentResponse, branchCollection, doctorCollection } from "@hms/shared";
 import { requireCallerRole } from "../services/callable-auth";
 import { sendNotification } from "../notifications/sendNotification";
 
@@ -35,13 +35,15 @@ export const bookAppointment = onCall(async (request) => {
     throw new HttpsError("not-found", "Patient not found.");
   }
 
-  const poolRef = db.collection("doctorSlots").doc(`${input.doctorId}_${input.date}_${input.session}`);
-  const appointmentRef = db.collection("appointments").doc();
+  const poolRef = db
+    .collection(doctorCollection(input.hospitalId, input.branchId, input.doctorId, "slots"))
+    .doc(`${input.date}_${input.session}`);
+  const appointmentRef = db.collection(branchCollection(input.hospitalId, input.branchId, "appointments")).doc();
 
   await db.runTransaction(async (tx) => {
     const poolSnap = await tx.get(poolRef);
     const pool = poolSnap.data();
-    if (!poolSnap.exists || pool?.hospitalId !== input.hospitalId || pool?.branchId !== input.branchId) {
+    if (!poolSnap.exists) {
       throw new HttpsError("not-found", "This session is not open for booking.");
     }
     if (pool?.status !== "approved") {
@@ -87,9 +89,10 @@ export const bookAppointment = onCall(async (request) => {
       date: input.date,
       session: input.session,
       bookedVia: bucket,
-      startTime: null,
-      token: null,
-      status: "pending",
+      checkIn: null,
+      vitals: null,
+      consultationSummary: null,
+      status: "PENDING",
       waitingListPosition: null,
       hospitalId: input.hospitalId,
       branchId: input.branchId,
@@ -120,7 +123,7 @@ export const bookAppointment = onCall(async (request) => {
       entityType: "appointments",
       entityId: appointmentRef.id,
       before: null,
-      after: { patientId: input.patientId, doctorId: input.doctorId, status: "pending" },
+      after: { patientId: input.patientId, doctorId: input.doctorId, status: "PENDING" },
       createdAt: now,
     });
 
@@ -136,5 +139,5 @@ export const bookAppointment = onCall(async (request) => {
     relatedEntityId: appointmentRef.id,
   });
 
-  return BookAppointmentResponse.parse({ appointmentId: appointmentRef.id, status: "pending" });
+  return BookAppointmentResponse.parse({ appointmentId: appointmentRef.id, status: "PENDING" });
 });

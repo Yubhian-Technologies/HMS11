@@ -1,6 +1,6 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { getFirestore } from "firebase-admin/firestore";
-import { CreateEmergencyAppointmentRequest, CreateEmergencyAppointmentResponse } from "@hms/shared";
+import { CreateEmergencyAppointmentRequest, CreateEmergencyAppointmentResponse, branchCollection, doctorPath } from "@hms/shared";
 import { writeWithAudit } from "@hms/shared-server";
 import { requireCallerRole } from "../services/callable-auth";
 import { assertOwnHospital } from "../services/scope-checks";
@@ -28,18 +28,17 @@ export const createEmergencyAppointment = onCall(async (request) => {
   const db = getFirestore();
   const [patientSnap, doctorSnap] = await Promise.all([
     db.collection("patients").doc(input.patientId).get(),
-    db.collection("doctorProfiles").doc(input.doctorId).get(),
+    db.doc(doctorPath(input.hospitalId, input.branchId, input.doctorId)).get(),
   ]);
   if (!patientSnap.exists) {
     throw new HttpsError("not-found", "Patient not found.");
   }
-  if (!doctorSnap.exists || doctorSnap.data()?.hospitalId !== input.hospitalId) {
+  if (!doctorSnap.exists) {
     throw new HttpsError("not-found", "Doctor not found in this hospital.");
   }
 
-  const now = new Date();
   const appointmentId = await writeWithAudit(db, {
-    collection: "appointments",
+    collection: branchCollection(input.hospitalId, input.branchId, "appointments"),
     data: {
       patientId: input.patientId,
       patientName: patientSnap.data()?.name ?? "",
@@ -50,9 +49,10 @@ export const createEmergencyAppointment = onCall(async (request) => {
       date: todayIso(),
       session: null,
       bookedVia: null,
-      startTime: `${String(now.getUTCHours()).padStart(2, "0")}:${String(now.getUTCMinutes()).padStart(2, "0")}`,
-      token: null,
-      status: "approved",
+      checkIn: null,
+      vitals: null,
+      consultationSummary: null,
+      status: "BOOKED",
       waitingListPosition: null,
       hospitalId: input.hospitalId,
       branchId: input.branchId,

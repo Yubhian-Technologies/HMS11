@@ -21,7 +21,7 @@ export default async function LabPage() {
   if (!session?.hospitalId || !session.branchId) redirect("/login");
   const { hospitalId, branchId } = session;
 
-  const grouped = await listLabOrdersByBranch(branchId);
+  const grouped = await listLabOrdersByBranch(hospitalId, branchId);
 
   const patientIds = Array.from(new Set(Object.values(grouped).flat().map((order) => order.patientId)));
   const patients = await Promise.all(patientIds.map((id) => getPatientProfile(id)));
@@ -50,11 +50,17 @@ export default async function LabPage() {
                     {status === "verified" ? (
                       <UploadReportDialog
                         hospitalId={hospitalId}
+                        branchId={branchId}
                         patientId={order.patientId}
                         labOrderId={order.id}
                       />
                     ) : (
-                      <AdvanceStatusButton hospitalId={hospitalId} labOrderId={order.id} status={order.status} />
+                      <AdvanceStatusButton
+                        hospitalId={hospitalId}
+                        branchId={branchId}
+                        labOrderId={order.id}
+                        status={order.status}
+                      />
                     )}
                   </div>
                 </div>

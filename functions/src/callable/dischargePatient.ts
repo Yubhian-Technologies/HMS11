@@ -1,6 +1,6 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
-import { DischargePatientRequest, DischargePatientResponse } from "@hms/shared";
+import { DischargePatientRequest, DischargePatientResponse, branchCollection } from "@hms/shared";
 import { requireCallerRole } from "../services/callable-auth";
 import { assertOwnHospital } from "../services/scope-checks";
 
@@ -13,9 +13,14 @@ export const dischargePatient = onCall(async (request) => {
   const caller = requireCallerRole(request, ["doctor"]);
   const input = DischargePatientRequest.parse(request.data);
   assertOwnHospital(caller, input.hospitalId);
+  if (caller.branchId !== input.branchId) {
+    throw new HttpsError("permission-denied", "You can only discharge patients in your own branch.");
+  }
 
   const db = getFirestore();
-  const admissionRef = db.collection("admissions").doc(input.admissionId);
+  const admissionRef = db
+    .collection(branchCollection(input.hospitalId, input.branchId, "admissions"))
+    .doc(input.admissionId);
 
   await db.runTransaction(async (tx) => {
     // Read inside the transaction so a concurrent discharge/reassignment of
@@ -23,7 +28,7 @@ export const dischargePatient = onCall(async (request) => {
     // committing against a stale "admitted" status.
     const admissionSnap = await tx.get(admissionRef);
     const admission = admissionSnap.data();
-    if (!admissionSnap.exists || admission?.hospitalId !== input.hospitalId) {
+    if (!admissionSnap.exists) {
       throw new HttpsError("not-found", "Admission not found.");
     }
     if (admission?.doctorId !== caller.uid) {
@@ -49,7 +54,10 @@ export const dischargePatient = onCall(async (request) => {
       updatedAt: now,
     });
 
-    tx.update(db.collection("beds").doc(admission.bedId), { status: "available", updatedAt: now });
+    tx.update(
+      db.collection(branchCollection(input.hospitalId, input.branchId, "beds")).doc(admission.bedId),
+      { status: "available", updatedAt: now },
+    );
 
     const auditRef = db.collection("auditLogs").doc();
     tx.set(auditRef, {

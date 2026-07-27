@@ -31,12 +31,12 @@ export default async function RoomsBedsPage({
     return <p className="text-sm text-muted-foreground">No branches yet — add one under Hospitals.</p>;
   }
 
-  const wards = await listWards(branch.id);
+  const wards = await listWards(hospitalId, branch.id);
   const wardsWithRooms = await Promise.all(
     wards.map(async (ward) => {
-      const rooms = await listRooms(ward.id);
+      const rooms = await listRooms(hospitalId, branch.id, ward.id);
       const roomsWithBeds = await Promise.all(
-        rooms.map(async (room) => ({ room, beds: await listBeds(room.id) })),
+        rooms.map(async (room) => ({ room, beds: await listBeds(hospitalId, branch.id, room.id) })),
       );
       return { ward, roomsWithBeds };
     }),
@@ -76,12 +76,13 @@ export default async function RoomsBedsPage({
                 <Badge variant={ward.status === "active" ? "success" : "destructive"} className="w-20 justify-center">{ward.status}</Badge>
                 <EditWardDialog
                   hospitalId={hospitalId}
+                  branchId={branch.id}
                   wardId={ward.id}
                   name={ward.name}
                   building={ward.building}
                   floor={ward.floor}
                 />
-                <WardStatusToggle hospitalId={hospitalId} wardId={ward.id} status={ward.status} />
+                <WardStatusToggle hospitalId={hospitalId} branchId={branch.id} wardId={ward.id} status={ward.status} />
                 <CreateRoomDialog hospitalId={hospitalId} branchId={branch.id} wardId={ward.id} />
               </div>
             </CardHeader>
@@ -103,11 +104,12 @@ export default async function RoomsBedsPage({
                         </Badge>
                         <EditRoomDialog
                           hospitalId={hospitalId}
+                          branchId={branch.id}
                           roomId={room.id}
                           roomNumber={room.roomNumber}
                           dailyRate={room.dailyRate}
                         />
-                        <RoomStatusToggle hospitalId={hospitalId} roomId={room.id} status={room.status} />
+                        <RoomStatusToggle hospitalId={hospitalId} branchId={branch.id} roomId={room.id} status={room.status} />
                         <CreateBedDialog hospitalId={hospitalId} branchId={branch.id} roomId={room.id} />
                       </div>
                     </div>

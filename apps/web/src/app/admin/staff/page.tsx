@@ -5,7 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getSession } from "@/lib/auth/require-role";
 import { listBranches } from "@/features/hospitals/services/read";
 import { listDepartments } from "@/features/departments/services/read";
-import { listStaffByRole, listDoctorProfiles } from "@/features/staff/services/read";
+import { listStaffByRole, listDoctorProfilesForHospital } from "@/features/staff/services/read";
 import { CreateDoctorDialog } from "@/features/staff/components/CreateDoctorDialog";
 import { CreateStaffDialog } from "@/features/staff/components/CreateStaffDialog";
 import { EditDoctorDialog } from "@/features/staff/components/EditDoctorDialog";
@@ -24,7 +24,7 @@ export default async function StaffPage() {
       listBranches(hospitalId),
       listDepartments(hospitalId),
       listStaffByRole(hospitalId, "doctor"),
-      listDoctorProfiles(hospitalId),
+      listDoctorProfilesForHospital(hospitalId),
       listStaffByRole(hospitalId, "office"),
       listStaffByRole(hospitalId, "reception"),
       listStaffByRole(hospitalId, "pharmacy"),

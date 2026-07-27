@@ -1,32 +1,31 @@
 import "server-only";
 import { getAdminDb } from "@/server/firebase-admin";
-import type { Ward, Room, Bed } from "@hms/shared";
+import { branchCollection, type Ward, type Room, type Bed } from "@hms/shared";
 
 export type WardRecord = Ward & { id: string };
 export type RoomRecord = Room & { id: string };
 export type BedRecord = Bed & { id: string };
 
-export async function listWards(branchId: string): Promise<WardRecord[]> {
+export async function listWards(hospitalId: string, branchId: string): Promise<WardRecord[]> {
   const snap = await getAdminDb()
-    .collection("wards")
-    .where("branchId", "==", branchId)
+    .collection(branchCollection(hospitalId, branchId, "wards"))
     .orderBy("createdAt", "asc")
     .get();
   return snap.docs.map((doc) => ({ id: doc.id, ...(doc.data() as Ward) }));
 }
 
-export async function listRooms(wardId: string): Promise<RoomRecord[]> {
+export async function listRooms(hospitalId: string, branchId: string, wardId: string): Promise<RoomRecord[]> {
   const snap = await getAdminDb()
-    .collection("rooms")
+    .collection(branchCollection(hospitalId, branchId, "rooms"))
     .where("wardId", "==", wardId)
     .orderBy("roomNumber", "asc")
     .get();
   return snap.docs.map((doc) => ({ id: doc.id, ...(doc.data() as Room) }));
 }
 
-export async function listBeds(roomId: string): Promise<BedRecord[]> {
+export async function listBeds(hospitalId: string, branchId: string, roomId: string): Promise<BedRecord[]> {
   const snap = await getAdminDb()
-    .collection("beds")
+    .collection(branchCollection(hospitalId, branchId, "beds"))
     .where("roomId", "==", roomId)
     .orderBy("bedNumber", "asc")
     .get();
@@ -34,10 +33,9 @@ export async function listBeds(roomId: string): Promise<BedRecord[]> {
 }
 
 /** FR-9.5 — bed picker for admission. */
-export async function listAvailableBeds(branchId: string): Promise<BedRecord[]> {
+export async function listAvailableBeds(hospitalId: string, branchId: string): Promise<BedRecord[]> {
   const snap = await getAdminDb()
-    .collection("beds")
-    .where("branchId", "==", branchId)
+    .collection(branchCollection(hospitalId, branchId, "beds"))
     .where("status", "==", "available")
     .get();
   return snap.docs.map((doc) => ({ id: doc.id, ...(doc.data() as Bed) }));
@@ -45,16 +43,18 @@ export async function listAvailableBeds(branchId: string): Promise<BedRecord[]> 
 
 /** Doctor's Room Details module — resolves a bed to its room + ward for display. */
 export async function getBedLocation(
+  hospitalId: string,
+  branchId: string,
   bedId: string,
 ): Promise<{ bed: BedRecord; room: RoomRecord; ward: WardRecord } | null> {
   const db = getAdminDb();
-  const bedDoc = await db.collection("beds").doc(bedId).get();
+  const bedDoc = await db.collection(branchCollection(hospitalId, branchId, "beds")).doc(bedId).get();
   if (!bedDoc.exists) return null;
   const bed = { id: bedDoc.id, ...(bedDoc.data() as Bed) };
 
   const [roomDoc, wardDoc] = await Promise.all([
-    db.collection("rooms").doc(bed.roomId).get(),
-    db.collection("wards").doc(bed.wardId).get(),
+    db.collection(branchCollection(hospitalId, branchId, "rooms")).doc(bed.roomId).get(),
+    db.collection(branchCollection(hospitalId, branchId, "wards")).doc(bed.wardId).get(),
   ]);
   if (!roomDoc.exists || !wardDoc.exists) return null;
 

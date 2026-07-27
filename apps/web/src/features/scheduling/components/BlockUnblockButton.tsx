@@ -9,10 +9,14 @@ import { setSlotStatus } from "../services/scheduling";
 /** Office-only: block an active slot, or unblock one it previously blocked. */
 export function BlockUnblockButton({
   hospitalId,
+  branchId,
+  doctorId,
   slotId,
   status,
 }: {
   hospitalId: string;
+  branchId: string;
+  doctorId: string;
   slotId: string;
   status: string;
 }) {
@@ -24,7 +28,13 @@ export function BlockUnblockButton({
   function handleClick() {
     startTransition(async () => {
       try {
-        await setSlotStatus({ hospitalId, slotId, status: status === "blocked" ? "approved" : "blocked" });
+        await setSlotStatus({
+          hospitalId,
+          branchId,
+          doctorId,
+          slotId,
+          status: status === "blocked" ? "approved" : "blocked",
+        });
         toast.success(status === "blocked" ? "Slot unblocked." : "Slot blocked.");
         router.refresh();
       } catch (err) {

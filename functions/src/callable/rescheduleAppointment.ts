@@ -1,6 +1,6 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
-import { RescheduleAppointmentRequest } from "@hms/shared";
+import { RescheduleAppointmentRequest, branchCollection, doctorCollection } from "@hms/shared";
 import { requireCallerRole } from "../services/callable-auth";
 import { assertOwnHospital } from "../services/scope-checks";
 import { freeSlotAndPromoteWaitlist, type WaitlistPromotion } from "../services/waitlist";
@@ -19,29 +19,34 @@ import { sendNotification } from "../notifications/sendNotification";
  */
 export const rescheduleAppointment = onCall(async (request) => {
   const caller = requireCallerRole(request, ["office"]);
-  const { hospitalId, appointmentId, newDate, newSession } = RescheduleAppointmentRequest.parse(request.data);
+  const { hospitalId, branchId, appointmentId, newDate, newSession } = RescheduleAppointmentRequest.parse(
+    request.data,
+  );
   assertOwnHospital(caller, hospitalId);
 
-  const db = getFirestore();
-  const apptRef = db.collection("appointments").doc(appointmentId);
-  const apptSnap = await apptRef.get();
-  const appt = apptSnap.data();
-
-  if (!apptSnap.exists || appt?.hospitalId !== hospitalId) {
-    throw new HttpsError("not-found", "Appointment not found.");
-  }
-  if (caller.branchId !== appt?.branchId) {
+  if (caller.branchId !== branchId) {
     throw new HttpsError("permission-denied", "You can only manage appointments in your own branch.");
   }
 
+  const db = getFirestore();
+  const apptRef = db.collection(branchCollection(hospitalId, branchId, "appointments")).doc(appointmentId);
+  const apptSnap = await apptRef.get();
+  const appt = apptSnap.data();
+
+  if (!appt) {
+    throw new HttpsError("not-found", "Appointment not found.");
+  }
+
   const bookedVia = (appt.bookedVia as "online" | "walkin" | null) ?? "online";
-  const newPoolRef = db.collection("doctorSlots").doc(`${appt.doctorId}_${newDate}_${newSession}`);
+  const newPoolRef = db
+    .collection(doctorCollection(hospitalId, branchId, appt.doctorId as string, "slots"))
+    .doc(`${newDate}_${newSession}`);
   const bucketField = bookedVia === "online" ? "onlineBookedCount" : "walkInBookedCount";
 
   const promotion: WaitlistPromotion | null = await db.runTransaction(async (tx) => {
     const newPoolSnap = await tx.get(newPoolRef);
     const newPool = newPoolSnap.data();
-    if (!newPoolSnap.exists || newPool?.hospitalId !== hospitalId || newPool?.branchId !== appt.branchId) {
+    if (!newPoolSnap.exists) {
       throw new HttpsError("not-found", "New session not found.");
     }
     if (newPool?.status !== "approved") {
@@ -59,6 +64,8 @@ export const rescheduleAppointment = onCall(async (request) => {
 
     const result = appt.session
       ? await freeSlotAndPromoteWaitlist(db, tx, {
+          hospitalId,
+          branchId,
           doctorId: appt.doctorId as string,
           date: appt.date as string,
           session: appt.session as "morning" | "afternoon",
@@ -70,7 +77,7 @@ export const rescheduleAppointment = onCall(async (request) => {
     tx.update(apptRef, {
       date: newDate,
       session: newSession,
-      status: "approved",
+      status: "BOOKED",
       updatedAt: now,
     });
 

@@ -7,7 +7,7 @@ export type LabReportRecord = LabReport & { id: string };
 
 export async function listPatientPrescriptions(patientId: string): Promise<PrescriptionRecord[]> {
   const snap = await getAdminDb()
-    .collection("prescriptions")
+    .collectionGroup("prescriptions")
     .where("patientId", "==", patientId)
     .orderBy("createdAt", "desc")
     .get();
@@ -16,7 +16,7 @@ export async function listPatientPrescriptions(patientId: string): Promise<Presc
 
 export async function listPatientLabReports(patientId: string): Promise<LabReportRecord[]> {
   const snap = await getAdminDb()
-    .collection("labReports")
+    .collectionGroup("labReports")
     .where("patientId", "==", patientId)
     .orderBy("createdAt", "desc")
     .get();

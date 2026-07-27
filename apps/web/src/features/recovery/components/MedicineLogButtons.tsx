@@ -6,14 +6,22 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { logMedicineStatus } from "../services/recovery";
 
-export function MedicineLogButtons({ medicineLogId }: { medicineLogId: string }) {
+export function MedicineLogButtons({
+  hospitalId,
+  branchId,
+  medicineLogId,
+}: {
+  hospitalId: string;
+  branchId: string;
+  medicineLogId: string;
+}) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
   function act(patientStatus: "taken" | "missed" | "skipped") {
     startTransition(async () => {
       try {
-        await logMedicineStatus({ medicineLogId, patientStatus });
+        await logMedicineStatus({ hospitalId, branchId, medicineLogId, patientStatus });
         toast.success(`Marked ${patientStatus}.`);
         router.refresh();
       } catch (err) {

@@ -50,11 +50,7 @@ export const NAV_ITEMS: Record<Role, NavItem[]> = {
     { label: "Lab Payments", href: "/office/lab-payments" },
   ],
   reception: [
-    // Check-in and Vitals are the same page (its two cards) — one nav entry,
-    // not two identical hrefs. Two items sharing a href both satisfy
-    // `item.href === activeHref` in DashboardShell, so both would light up
-    // together no matter which one was clicked; that's the actual bug.
-    { label: "Check-in & Vitals", href: "/reception" },
+    { label: "Check-in", href: "/reception" },
     { label: "Walk-in Booking", href: "/reception/book" },
     { label: "Billing", href: "/reception/billing" },
   ],
@@ -85,6 +81,8 @@ export const NAV_ITEMS: Record<Role, NavItem[]> = {
     { label: "Notifications", href: "/notifications" },
     { label: "Feedback", href: "/patient/feedback" },
   ],
-  // Reserved role, no Phase 1 UI/permissions (docs/07-user-roles.md).
-  nurse: [],
+  nurse: [
+    { label: "Vitals Queue", href: "/nurse" },
+    { label: "Ward Care" },
+  ],
 };

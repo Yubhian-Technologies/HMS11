@@ -1,6 +1,6 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { getFirestore } from "firebase-admin/firestore";
-import { AssignLabOrderRequest, AssignLabOrderResponse } from "@hms/shared";
+import { AssignLabOrderRequest, AssignLabOrderResponse, branchCollection } from "@hms/shared";
 import { writeWithAudit } from "@hms/shared-server";
 import { requireCallerRole } from "../services/callable-auth";
 import { assertOwnHospital } from "../services/scope-checks";
@@ -22,19 +22,19 @@ export const assignLabOrder = onCall(async (request) => {
   const db = getFirestore();
   const [patientSnap, testSnap] = await Promise.all([
     db.collection("patients").doc(input.patientId).get(),
-    db.collection("labTestMaster").doc(input.testId).get(),
+    db.collection(branchCollection(input.hospitalId, input.branchId, "labTestMaster")).doc(input.testId).get(),
   ]);
   if (!patientSnap.exists) {
     throw new HttpsError("not-found", "Patient not found.");
   }
-  if (!testSnap.exists || testSnap.data()?.hospitalId !== input.hospitalId) {
+  if (!testSnap.exists) {
     throw new HttpsError("not-found", "Lab test not found.");
   }
 
   const labOrderId = await writeWithAudit(db, {
-    collection: "labOrders",
+    collection: branchCollection(input.hospitalId, input.branchId, "labOrders"),
     data: {
-      consultationId: null,
+      appointmentId: input.appointmentId,
       patientId: input.patientId,
       doctorId: caller.uid,
       testId: input.testId,

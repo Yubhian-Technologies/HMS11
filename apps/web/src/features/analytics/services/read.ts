@@ -50,7 +50,7 @@ export async function getPlatformAnalytics(): Promise<PlatformAnalytics> {
   const [hospitalCountSnap, activeUserCountSnap, statsSnap] = await Promise.all([
     db.collection("hospitals").where("status", "==", "active").count().get(),
     db.collection("users").where("status", "==", "active").count().get(),
-    db.collection("dailyStats").where("date", ">=", startDate).get(),
+    db.collectionGroup("dailyStats").where("date", ">=", startDate).get(),
   ]);
 
   const stats = statsSnap.docs.map((doc) => doc.data() as DailyStats);
@@ -67,7 +67,7 @@ export async function getHospitalAnalytics(hospitalId: string): Promise<Hospital
   const startDate = sevenDaysAgoIso();
 
   const statsSnap = await db
-    .collection("dailyStats")
+    .collectionGroup("dailyStats")
     .where("hospitalId", "==", hospitalId)
     .where("date", ">=", startDate)
     .orderBy("date", "asc")

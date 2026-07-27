@@ -15,22 +15,22 @@ export default async function DoctorLabsPage() {
 
   const today = todayIsoClient();
   const [queue, labTests, labOrders] = await Promise.all([
-    listDoctorQueue(doctorId, today),
-    listLabTests(branchId),
+    listDoctorQueue(hospitalId, branchId, doctorId, today),
+    listLabTests(hospitalId, branchId),
     // Isolated: a missing/pending composite index on this newer collection
     // must degrade this one section, not crash the whole page.
-    listLabOrdersForDoctor(doctorId).catch(() => []),
+    listLabOrdersForDoctor(hospitalId, branchId, doctorId).catch(() => []),
   ]);
 
   const ordersWithReports = await Promise.all(
     labOrders.map(async (order) => ({
       order,
-      report: order.status === "reportUploaded" ? await getLabReportForOrder(order.id) : null,
+      report: order.status === "reportUploaded" ? await getLabReportForOrder(hospitalId, branchId, order.id) : null,
     })),
   );
 
-  const patients = Array.from(new Map(queue.map((a) => [a.patientId, a.patientName])).entries()).map(
-    ([id, name]) => ({ id, name }),
+  const patients = Array.from(new Map(queue.map((a) => [a.id, { patientId: a.patientId, name: a.patientName }])).entries()).map(
+    ([appointmentId, { patientId, name }]) => ({ appointmentId, patientId, name }),
   );
 
   return (

@@ -19,11 +19,13 @@ import { updateRoom } from "../services/facilities";
 
 export function EditRoomDialog({
   hospitalId,
+  branchId,
   roomId,
   roomNumber,
   dailyRate,
 }: {
   hospitalId: string;
+  branchId: string;
   roomId: string;
   roomNumber: string;
   dailyRate: number;
@@ -39,6 +41,7 @@ export function EditRoomDialog({
     try {
       await updateRoom({
         hospitalId,
+        branchId,
         roomId,
         roomNumber: form.roomNumber,
         dailyRate: Number(form.dailyRate),

@@ -14,11 +14,11 @@ export default async function PharmacyPage() {
   const { hospitalId, branchId } = session;
 
   const [prescriptions, inventory, doctorMedicineOrders] = await Promise.all([
-    listPrescriptionsForBranch(branchId),
-    listMedicineInventory(branchId),
+    listPrescriptionsForBranch(hospitalId, branchId),
+    listMedicineInventory(hospitalId, branchId),
     // Isolated: a missing/pending composite index on this newer collection
     // must degrade this one section, not crash the whole page.
-    listMedicineOrdersForBranch(branchId).catch(() => []),
+    listMedicineOrdersForBranch(hospitalId, branchId).catch(() => []),
   ]);
 
   const orderPatientIds = Array.from(new Set(doctorMedicineOrders.map((o) => o.patientId)));
@@ -26,7 +26,10 @@ export default async function PharmacyPage() {
   const patientNameById = new Map(orderPatients.filter(Boolean).map((p) => [p!.id, p!.name]));
 
   const prescriptionsWithDispenses = await Promise.all(
-    prescriptions.map(async (p) => ({ prescription: p, dispenses: await listDispensesForPrescription(p.id) })),
+    prescriptions.map(async (p) => ({
+      prescription: p,
+      dispenses: await listDispensesForPrescription(hospitalId, branchId, p.id),
+    })),
   );
 
   const activeInventory = inventory.filter((i) => i.status === "active");

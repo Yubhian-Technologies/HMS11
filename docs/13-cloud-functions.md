@@ -1,5 +1,14 @@
 # 13 — Cloud Functions Inventory
 
+> **Revision note:** the callable table below (§13.3) still reflects flat collection
+> paths and Reception-captures-vitals, matching the current
+> `functions/src/callable/*` implementation. For the nested-hierarchy, Nurse-activated
+> target design, see [14-api-design.md](./14-api-design.md) §14.2's per-workflow table
+> instead — it supersedes this section's function list (same functions, several
+> renamed/re-scoped: `recordVitals` moves to Nurse, `submitConsultation` writes an
+> embedded `consultationSummary` instead of a separate `consultations` doc, etc.).
+> Doc 10's Migration Status section has the full gap list.
+
 All functions live in `functions/src/`, grouped by trigger type per
 [11-folder-structure.md](./11-folder-structure.md). Business logic itself lives in
 `functions/src/services/` (or `packages/shared` if identical logic is also needed by

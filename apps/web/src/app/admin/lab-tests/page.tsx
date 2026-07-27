@@ -25,7 +25,7 @@ export default async function LabTestsPage({
     return <p className="text-sm text-muted-foreground">No branches yet — add one under Hospitals.</p>;
   }
 
-  const tests = await listLabTests(branch.id);
+  const tests = await listLabTests(hospitalId, branch.id);
 
   return (
     <div className="flex flex-col gap-6">
@@ -73,7 +73,7 @@ export default async function LabTestsPage({
                       sampleType: test.sampleType,
                     }}
                   />
-                  <LabTestStatusToggle hospitalId={hospitalId} testId={test.id} status={test.status} />
+                  <LabTestStatusToggle hospitalId={hospitalId} branchId={branch.id} testId={test.id} status={test.status} />
                 </div>
               </div>
             ))

@@ -22,10 +22,12 @@ const NEXT_LABEL: Record<string, string> = {
 
 export function AdvanceStatusButton({
   hospitalId,
+  branchId,
   labOrderId,
   status,
 }: {
   hospitalId: string;
+  branchId: string;
   labOrderId: string;
   status: string;
 }) {
@@ -37,7 +39,7 @@ export function AdvanceStatusButton({
   function handleClick() {
     startTransition(async () => {
       try {
-        await advanceLabOrderStatus({ hospitalId, labOrderId, toStatus: next! });
+        await advanceLabOrderStatus({ hospitalId, branchId, labOrderId, toStatus: next! });
         toast.success(`Marked ${next}.`);
         router.refresh();
       } catch (err) {

@@ -16,9 +16,9 @@ export default async function DoctorAdmissionsPage() {
   const { hospitalId, branchId, uid: doctorId } = session;
 
   const [admissions, pendingBed, wards] = await Promise.all([
-    listActiveAdmissionsForDoctor(doctorId),
-    listPendingBedAssignmentsForDoctor(doctorId),
-    listWards(branchId),
+    listActiveAdmissionsForDoctor(hospitalId, branchId, doctorId),
+    listPendingBedAssignmentsForDoctor(hospitalId, branchId, doctorId),
+    listWards(hospitalId, branchId),
   ]);
   const withPatients = await Promise.all(
     admissions.map(async (a) => ({ admission: a, patient: await getPatientProfile(a.patientId) })),
@@ -29,9 +29,9 @@ export default async function DoctorAdmissionsPage() {
 
   const wardsWithRooms = await Promise.all(
     wards.map(async (ward) => {
-      const rooms = await listRooms(ward.id);
+      const rooms = await listRooms(hospitalId, branchId, ward.id);
       const roomsWithBeds = await Promise.all(
-        rooms.map(async (room) => ({ room, beds: await listBeds(room.id) })),
+        rooms.map(async (room) => ({ room, beds: await listBeds(hospitalId, branchId, room.id) })),
       );
       return { ward, roomsWithBeds };
     }),
@@ -92,6 +92,7 @@ export default async function DoctorAdmissionsPage() {
                 <p className="font-medium text-foreground">{patient?.name ?? "Unknown patient"}</p>
                 <DischargeDialog
                   hospitalId={hospitalId}
+                  branchId={branchId}
                   admissionId={admission.id}
                   patientName={patient?.name ?? "this patient"}
                 />

@@ -17,6 +17,13 @@ export interface WriteWithAuditParams {
   /** Field snapshot before the write, for the audit trail. Required for update/statusChange. */
   before?: Record<string, unknown> | null;
   context: AuditContext;
+  /**
+   * Semantic entity name recorded on the audit log, e.g. "appointments" —
+   * defaults to `collection`. Pass this explicitly when `collection` is a
+   * full nested Firestore path (e.g. `branchCollection(...)`) so the audit
+   * trail still reads as the short collection name rather than the whole path.
+   */
+  entityType?: string;
 }
 
 /**
@@ -54,7 +61,7 @@ export async function writeWithAudit(
       actorId: params.context.actorId,
       actorRole: params.context.actorRole,
       action: params.action,
-      entityType: params.collection,
+      entityType: params.entityType ?? params.collection,
       entityId: targetRef.id,
       before: params.before ?? null,
       after: params.data,

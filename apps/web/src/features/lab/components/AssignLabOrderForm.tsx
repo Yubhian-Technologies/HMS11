@@ -16,21 +16,23 @@ export function AssignLabOrderForm({
 }: {
   hospitalId: string;
   branchId: string;
-  patients: { id: string; name: string }[];
+  patients: { appointmentId: string; patientId: string; name: string }[];
   labTests: { id: string; name: string; price: number }[];
 }) {
   const router = useRouter();
-  const [patientId, setPatientId] = useState("");
+  const [appointmentId, setAppointmentId] = useState("");
   const [testId, setTestId] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    const patient = patients.find((p) => p.appointmentId === appointmentId);
+    if (!patient) return;
     setSubmitting(true);
     try {
-      await assignLabOrder({ hospitalId, branchId, patientId, testId });
+      await assignLabOrder({ hospitalId, branchId, patientId: patient.patientId, appointmentId, testId });
       toast.success("Lab test assigned — sent to Office for payment.");
-      setPatientId("");
+      setAppointmentId("");
       setTestId("");
       router.refresh();
     } catch (err) {
@@ -47,13 +49,13 @@ export function AssignLabOrderForm({
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="grid grid-cols-3 gap-2">
-          <Select value={patientId} onValueChange={(v) => setPatientId(v ?? "")}>
+          <Select value={appointmentId} onValueChange={(v) => setAppointmentId(v ?? "")}>
             <SelectTrigger>
               <SelectValue placeholder="Patient" />
             </SelectTrigger>
             <SelectContent>
               {patients.map((p) => (
-                <SelectItem key={p.id} value={p.id}>
+                <SelectItem key={p.appointmentId} value={p.appointmentId}>
                   {p.name}
                 </SelectItem>
               ))}
@@ -71,7 +73,7 @@ export function AssignLabOrderForm({
               ))}
             </SelectContent>
           </Select>
-          <Button type="submit" disabled={submitting || !patientId || !testId}>
+          <Button type="submit" disabled={submitting || !appointmentId || !testId}>
             {submitting ? "Assigning…" : "Assign"}
           </Button>
         </form>

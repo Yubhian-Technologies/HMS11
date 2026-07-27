@@ -6,31 +6,26 @@ import { Card, CardContent } from "@/components/ui/card";
 import { getSession } from "@/lib/auth/require-role";
 import { todayIsoClient } from "@/lib/rolling-window";
 import { listDoctorQueue } from "@/features/appointments/services/read";
-import { getVitalsForAppointment } from "@/features/reception/services/read";
 import { VitalsLiveRefresh } from "@/features/reception/components/VitalsLiveRefresh";
 
 export default async function DoctorQueuePage() {
   const session = await getSession();
-  if (!session) redirect("/login");
+  if (!session?.hospitalId || !session.branchId) redirect("/login");
+  const { hospitalId, branchId, uid: doctorId } = session;
 
   const today = todayIsoClient();
-  const queue = await listDoctorQueue(session.uid, today);
-  const withVitals = await Promise.all(
-    queue.map(async (appt) => ({ appt, vitals: await getVitalsForAppointment(appt.id) })),
-  );
+  const queue = await listDoctorQueue(hospitalId, branchId, doctorId, today);
 
   return (
     <div className="flex flex-col gap-6">
-      {session.hospitalId && session.branchId ? (
-        <VitalsLiveRefresh hospitalId={session.hospitalId} branchId={session.branchId} />
-      ) : null}
+      <VitalsLiveRefresh hospitalId={hospitalId} branchId={branchId} />
       <h1 className="text-xl font-semibold text-foreground">Queue — Today</h1>
       <Card>
         <CardContent className="flex flex-col gap-3 pt-6">
-          {withVitals.length === 0 ? (
-            <p className="py-6 text-center text-sm text-muted-foreground">No patients checked in yet.</p>
+          {queue.length === 0 ? (
+            <p className="py-6 text-center text-sm text-muted-foreground">No patients with vitals recorded yet.</p>
           ) : (
-            withVitals.map(({ appt, vitals }) => (
+            queue.map((appt) => (
               <div
                 key={appt.id}
                 className="flex items-center justify-between rounded-md border border-border p-3 text-sm"
@@ -39,16 +34,16 @@ export default async function DoctorQueuePage() {
                   <p className="font-medium text-foreground">
                     {appt.patientName}{" "}
                     {appt.type === "emergency" ? <Badge variant="destructive">EMERGENCY</Badge> : null}
-                    {appt.token ? <Badge variant="default">#{appt.token}</Badge> : null}
+                    {appt.checkIn?.token ? <Badge variant="default">#{appt.checkIn.token}</Badge> : null}
                   </p>
-                  {vitals ? (
+                  {appt.vitals ? (
                     <p className="text-muted-foreground">
-                      BP {vitals.bloodPressure} · Pulse {vitals.pulse} · Temp {vitals.temperatureC}°C · SpO2{" "}
-                      {vitals.spo2}% · BMI {vitals.bmi}
-                      {vitals.chiefComplaint ? ` · "${vitals.chiefComplaint}"` : ""}
+                      BP {appt.vitals.bloodPressure} · Pulse {appt.vitals.pulse} · Temp {appt.vitals.temperatureC}°C ·
+                      SpO2 {appt.vitals.spo2}% · BMI {appt.vitals.bmi}
+                      {appt.vitals.chiefComplaint ? ` · "${appt.vitals.chiefComplaint}"` : ""}
                     </p>
                   ) : (
-                    <p className="text-muted-foreground">Waiting on vitals from Reception…</p>
+                    <p className="text-muted-foreground">Waiting on vitals from Nurse…</p>
                   )}
                 </div>
                 <div className="flex items-center gap-2">
@@ -69,8 +64,12 @@ export default async function DoctorQueuePage() {
                   <Button size="sm" render={<Link href={`/doctor/labs?appointmentId=${appt.id}`} />}>
                     Labs
                   </Button>
-                  <Button size="sm" disabled={!vitals} render={<Link href={`/doctor/consult?appointmentId=${appt.id}`} />}>
-                    {vitals ? "Start Consultation" : "Awaiting vitals"}
+                  <Button
+                    size="sm"
+                    disabled={!appt.vitals}
+                    render={<Link href={`/doctor/consult?appointmentId=${appt.id}`} />}
+                  >
+                    {appt.vitals ? "Start Consultation" : "Awaiting vitals"}
                   </Button>
                 </div>
               </div>

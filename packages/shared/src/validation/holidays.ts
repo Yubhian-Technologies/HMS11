@@ -14,9 +14,11 @@ export type CreateHolidayRequest = z.infer<typeof CreateHolidayRequest>;
 export const CreateHolidayResponse = z.object({ holidayId: z.string() });
 export type CreateHolidayResponse = z.infer<typeof CreateHolidayResponse>;
 
+/** `branchId` required — `holidays` nests under the branch, so admin (not branch-scoped by claim) must say which one. */
 export const SetHolidayStatusRequest = z
   .object({
     hospitalId: z.string().min(1),
+    branchId: z.string().min(1),
     holidayId: z.string().min(1),
     status: z.enum(["active", "disabled"]),
   })
@@ -31,6 +33,7 @@ export type SetHolidayStatusRequest = z.infer<typeof SetHolidayStatusRequest>;
 export const DeleteHolidayRequest = z
   .object({
     hospitalId: z.string().min(1),
+    branchId: z.string().min(1),
     holidayId: z.string().min(1),
   })
   .strict();

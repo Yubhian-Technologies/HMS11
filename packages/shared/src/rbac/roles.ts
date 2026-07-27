@@ -1,22 +1,19 @@
-/**
- * See docs/07-user-roles.md. `nurse` is reserved (Phase 1 has no UI/permissions
- * for it) so adding it later is additive, not a breaking change to this union.
- */
+/** See docs/07-user-roles.md. All nine roles are active as of the Nurse activation. */
 export const ROLES = [
   "super_admin",
   "admin",
   "office",
   "reception",
+  "nurse",
   "doctor",
   "pharmacy",
   "lab",
   "patient",
-  "nurse",
 ] as const;
 
 export type Role = (typeof ROLES)[number];
 
-export const PHASE_1_ACTIVE_ROLES: Role[] = ROLES.filter((r) => r !== "nurse");
+export const PHASE_1_ACTIVE_ROLES: Role[] = [...ROLES];
 
 /**
  * Scope model per role — docs/07-user-roles.md §7.1.

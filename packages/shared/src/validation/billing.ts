@@ -20,6 +20,7 @@ export type GenerateInvoiceResponse = z.infer<typeof GenerateInvoiceResponse>;
 export const RecordPaymentRequest = z
   .object({
     hospitalId: z.string().min(1),
+    branchId: z.string().min(1),
     invoiceId: z.string().min(1),
     amount: z.number().positive(),
     paymentMethod: z.enum(["cash", "card", "upi"]),

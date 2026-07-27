@@ -19,14 +19,14 @@ export default async function DoctorPrescriptionsPage({
   const { appointmentId } = await searchParams;
   if (!appointmentId) redirect("/doctor");
 
-  const appointment = await getAppointment(appointmentId);
+  const appointment = await getAppointment(hospitalId, branchId, appointmentId);
   if (!appointment || appointment.doctorId !== session.uid) {
     return <p className="text-sm text-muted-foreground">Appointment not found.</p>;
   }
 
   const [history, inventory, medicineOrders] = await Promise.all([
     getPatientHistory(appointment.patientId, hospitalId),
-    listMedicineInventory(branchId),
+    listMedicineInventory(hospitalId, branchId),
     // Isolated: a missing/pending composite index on this newer collection
     // must degrade this one section, not crash the whole page.
     listMedicineOrdersForPatient(appointment.patientId).catch(() => []),

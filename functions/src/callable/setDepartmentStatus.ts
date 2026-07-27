@@ -1,6 +1,6 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { getFirestore } from "firebase-admin/firestore";
-import { SetDepartmentStatusRequest } from "@hms/shared";
+import { SetDepartmentStatusRequest, hospitalCollection } from "@hms/shared";
 import { writeWithAudit } from "@hms/shared-server";
 import { requireCallerRole } from "../services/callable-auth";
 
@@ -14,14 +14,14 @@ export const setDepartmentStatus = onCall(async (request) => {
   }
 
   const db = getFirestore();
-  const ref = db.collection("departments").doc(departmentId);
+  const ref = db.collection(hospitalCollection(hospitalId, "departments")).doc(departmentId);
   const snap = await ref.get();
-  if (!snap.exists || snap.data()?.hospitalId !== hospitalId) {
+  if (!snap.exists) {
     throw new HttpsError("not-found", "Department not found.");
   }
 
   await writeWithAudit(db, {
-    collection: "departments",
+    collection: hospitalCollection(hospitalId, "departments"),
     docId: departmentId,
     data: { status },
     action: "statusChange",

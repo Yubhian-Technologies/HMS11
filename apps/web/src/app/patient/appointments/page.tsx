@@ -40,7 +40,7 @@ export default async function PatientAppointmentsPage() {
                     {appt.waitingListPosition ? ` · waiting list #${appt.waitingListPosition}` : ""}
                   </p>
                 </div>
-                <Badge variant={appt.status === "approved" ? "default" : "destructive"}>{appt.status}</Badge>
+                <Badge variant={appt.status === "BOOKED" ? "default" : "destructive"}>{appt.status}</Badge>
               </div>
             ))
           )}

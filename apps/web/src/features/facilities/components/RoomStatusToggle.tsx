@@ -7,10 +7,12 @@ import { setRoomStatus } from "../services/facilities";
 
 export function RoomStatusToggle({
   hospitalId,
+  branchId,
   roomId,
   status,
 }: {
   hospitalId: string;
+  branchId: string;
   roomId: string;
   status: "active" | "disabled";
 }) {
@@ -18,7 +20,7 @@ export function RoomStatusToggle({
 
   async function handleToggle(nextStatus: "active" | "disabled") {
     try {
-      await setRoomStatus({ hospitalId, roomId, status: nextStatus });
+      await setRoomStatus({ hospitalId, branchId, roomId, status: nextStatus });
       toast.success(`Room ${nextStatus === "active" ? "enabled" : "disabled"}.`);
       router.refresh();
     } catch (err) {

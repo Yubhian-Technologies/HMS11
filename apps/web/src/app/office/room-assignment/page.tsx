@@ -17,9 +17,9 @@ export default async function OfficeRoomAssignmentPage() {
   const [pending, doctors, wards] = await Promise.all([
     // Isolated: a missing/pending composite index must degrade this
     // section, not crash the whole page.
-    listPendingBedAssignments(branchId).catch(() => []),
+    listPendingBedAssignments(hospitalId, branchId).catch(() => []),
     listStaffByRole(hospitalId, "doctor"),
-    listWards(branchId),
+    listWards(hospitalId, branchId),
   ]);
   const doctorName = new Map(doctors.map((d) => [d.id, d.name]));
 
@@ -29,9 +29,9 @@ export default async function OfficeRoomAssignmentPage() {
 
   const wardsWithRooms = await Promise.all(
     wards.map(async (ward) => {
-      const rooms = await listRooms(ward.id);
+      const rooms = await listRooms(hospitalId, branchId, ward.id);
       const roomsWithBeds = await Promise.all(
-        rooms.map(async (room) => ({ room, beds: await listBeds(room.id) })),
+        rooms.map(async (room) => ({ room, beds: await listBeds(hospitalId, branchId, room.id) })),
       );
       return { ward, roomsWithBeds };
     }),

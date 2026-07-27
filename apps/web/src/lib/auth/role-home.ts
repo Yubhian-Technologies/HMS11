@@ -24,8 +24,7 @@ export function roleHome(role: Role): string {
     case "patient":
       return "/patient";
     case "nurse":
-      // Reserved role, no Phase 1 UI/permissions (docs/07-user-roles.md).
-      return "/login";
+      return "/nurse";
     default: {
       const exhaustive: never = role;
       return exhaustive;

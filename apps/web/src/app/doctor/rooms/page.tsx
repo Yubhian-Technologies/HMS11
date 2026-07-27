@@ -7,14 +7,15 @@ import { getBedLocation } from "@/features/facilities/services/read";
 
 export default async function DoctorRoomsPage() {
   const session = await getSession();
-  if (!session) redirect("/login");
+  if (!session?.hospitalId || !session.branchId) redirect("/login");
+  const { hospitalId, branchId, uid: doctorId } = session;
 
-  const admissions = await listActiveAdmissionsForDoctor(session.uid);
+  const admissions = await listActiveAdmissionsForDoctor(hospitalId, branchId, doctorId);
   const rows = await Promise.all(
     admissions.map(async (admission) => {
       const [patient, location] = await Promise.all([
         getPatientProfile(admission.patientId),
-        admission.bedId ? getBedLocation(admission.bedId) : Promise.resolve(null),
+        admission.bedId ? getBedLocation(hospitalId, branchId, admission.bedId) : Promise.resolve(null),
       ]);
       return { admission, patient, location };
     }),

@@ -8,10 +8,12 @@ import { resolveFeedback } from "../services/feedback";
 
 export function ResolveFeedbackButtons({
   hospitalId,
+  branchId,
   feedbackId,
   status,
 }: {
   hospitalId: string;
+  branchId: string;
   feedbackId: string;
   status: "open" | "acknowledged" | "resolved";
 }) {
@@ -21,7 +23,7 @@ export function ResolveFeedbackButtons({
   function act(next: "acknowledged" | "resolved") {
     startTransition(async () => {
       try {
-        await resolveFeedback({ hospitalId, feedbackId, status: next });
+        await resolveFeedback({ hospitalId, branchId, feedbackId, status: next });
         toast.success(`Marked ${next}.`);
         router.refresh();
       } catch (err) {

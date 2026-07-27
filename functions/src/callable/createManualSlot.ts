@@ -1,6 +1,6 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
-import { CreateManualSlotRequest, CreateManualSlotResponse } from "@hms/shared";
+import { CreateManualSlotRequest, CreateManualSlotResponse, doctorPath, doctorCollection } from "@hms/shared";
 import { writeWithAudit } from "@hms/shared-server";
 import { requireCallerRole } from "../services/callable-auth";
 import { assertOwnHospital } from "../services/scope-checks";
@@ -24,21 +24,18 @@ export const createManualSlot = onCall(async (request) => {
   }
 
   const db = getFirestore();
-  const doctorSnap = await db.collection("doctorProfiles").doc(input.doctorId).get();
-  if (
-    !doctorSnap.exists ||
-    doctorSnap.data()?.hospitalId !== input.hospitalId ||
-    doctorSnap.data()?.branchId !== input.branchId
-  ) {
+  const doctorSnap = await db.doc(doctorPath(input.hospitalId, input.branchId, input.doctorId)).get();
+  if (!doctorSnap.exists) {
     throw new HttpsError("not-found", "Doctor not found in this branch.");
   }
 
-  const poolRef = db.collection("doctorSlots").doc(`${input.doctorId}_${input.date}_${input.session}`);
+  const slotsCollection = doctorCollection(input.hospitalId, input.branchId, input.doctorId, "slots");
+  const poolRef = db.collection(slotsCollection).doc(`${input.date}_${input.session}`);
   const poolSnap = await poolRef.get();
 
   if (!poolSnap.exists) {
     await writeWithAudit(db, {
-      collection: "doctorSlots",
+      collection: slotsCollection,
       docId: poolRef.id,
       data: {
         doctorId: input.doctorId,
@@ -61,12 +58,9 @@ export const createManualSlot = onCall(async (request) => {
   }
 
   const pool = poolSnap.data();
-  if (pool?.hospitalId !== input.hospitalId || pool?.branchId !== input.branchId) {
-    throw new HttpsError("not-found", "Session pool not found in this branch.");
-  }
 
   await writeWithAudit(db, {
-    collection: "doctorSlots",
+    collection: slotsCollection,
     docId: poolRef.id,
     data: {
       totalCount: FieldValue.increment(input.count),

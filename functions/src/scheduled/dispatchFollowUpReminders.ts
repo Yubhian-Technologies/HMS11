@@ -8,13 +8,16 @@ import { addDays, todayIso } from "../services/datetime";
  * follow-up scheduled for tomorrow that they haven't booked yet
  * (`resultingAppointmentId == null`) — idempotent the same way as
  * dispatchAppointmentReminders (the target date changes every run).
+ *
+ * `followUps` is nested per branch now — this scan runs across every
+ * hospital/branch, so it uses `collectionGroup()`.
  */
 export const dispatchFollowUpReminders = onSchedule("every day 08:00", async () => {
   const db = getFirestore();
   const tomorrow = addDays(todayIso(), 1);
 
   const snap = await db
-    .collection("followUps")
+    .collectionGroup("followUps")
     .where("scheduledDate", "==", tomorrow)
     .where("resultingAppointmentId", "==", null)
     .get();

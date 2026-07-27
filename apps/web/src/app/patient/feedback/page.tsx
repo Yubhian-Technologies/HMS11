@@ -15,7 +15,7 @@ export default async function PatientFeedbackPage() {
     listFeedbackByPatient(session.uid),
   ]);
 
-  const completed = appointments.filter((a) => a.status === "completed");
+  const completed = appointments.filter((a) => a.status === "COMPLETED");
   const feedbackByAppointment = new Map(feedback.map((f) => [f.appointmentId, f]));
 
   return (
@@ -47,7 +47,11 @@ export default async function PatientFeedbackPage() {
                       {existing.isComplaint && <Badge variant="outline">{existing.status}</Badge>}
                     </div>
                   ) : (
-                    <SubmitFeedbackDialog appointmentId={appt.id} />
+                    <SubmitFeedbackDialog
+                      hospitalId={appt.hospitalId}
+                      branchId={appt.branchId!}
+                      appointmentId={appt.id}
+                    />
                   )}
                 </div>
               );

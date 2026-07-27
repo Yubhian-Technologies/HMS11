@@ -1,10 +1,15 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
-import { BulkApproveSlotsRequest, BulkApproveSlotsResponse } from "@hms/shared";
+import { BulkApproveSlotsRequest, BulkApproveSlotsResponse, doctorCollection } from "@hms/shared";
 import { requireCallerRole } from "../services/callable-auth";
 import { assertOwnHospital } from "../services/scope-checks";
 
-/** FR-4.4 — doctor bulk-approves every pendingApproval slot for one date. */
+/**
+ * FR-4.4 — doctor bulk-approves every pendingApproval slot for one date. No
+ * `branchId` in the request — doctor is branch-scoped by claim, so
+ * `caller.branchId` locates the nested `slots` collection (same pattern as
+ * `setBedStatus`/`respondAvailabilityRequest`).
+ */
 export const bulkApproveSlots = onCall(async (request) => {
   const caller = requireCallerRole(request, ["doctor"]);
   const { hospitalId, doctorId, date } = BulkApproveSlotsRequest.parse(request.data);
@@ -15,9 +20,9 @@ export const bulkApproveSlots = onCall(async (request) => {
   }
 
   const db = getFirestore();
+  const slotsCollection = doctorCollection(hospitalId, caller.branchId!, doctorId, "slots");
   const snap = await db
-    .collection("doctorSlots")
-    .where("doctorId", "==", doctorId)
+    .collection(slotsCollection)
     .where("date", "==", date)
     .where("status", "==", "pendingApproval")
     .get();

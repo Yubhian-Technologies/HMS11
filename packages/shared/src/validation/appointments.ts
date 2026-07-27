@@ -23,7 +23,7 @@ export type BookAppointmentRequest = z.infer<typeof BookAppointmentRequest>;
 
 export const BookAppointmentResponse = z.object({
   appointmentId: z.string(),
-  status: z.literal("pending"),
+  status: z.literal("PENDING"),
 });
 export type BookAppointmentResponse = z.infer<typeof BookAppointmentResponse>;
 
@@ -42,12 +42,16 @@ export type CreateEmergencyAppointmentRequest = z.infer<typeof CreateEmergencyAp
 export const CreateEmergencyAppointmentResponse = z.object({ appointmentId: z.string() });
 export type CreateEmergencyAppointmentResponse = z.infer<typeof CreateEmergencyAppointmentResponse>;
 
-/** FR-6.3. office only, own branch. */
+/**
+ * FR-6.3. office only, own branch. `BOOKED` = approve (patient-visible,
+ * eligible for check-in); `REJECTED`/`CANCELLED` end the appointment.
+ */
 export const SetAppointmentStatusRequest = z
   .object({
     hospitalId: z.string().min(1),
+    branchId: z.string().min(1),
     appointmentId: z.string().min(1),
-    status: z.enum(["approved", "rejected", "cancelled"]),
+    status: z.enum(["BOOKED", "REJECTED", "CANCELLED"]),
   })
   .strict();
 export type SetAppointmentStatusRequest = z.infer<typeof SetAppointmentStatusRequest>;
@@ -59,6 +63,7 @@ export type SetAppointmentStatusRequest = z.infer<typeof SetAppointmentStatusReq
 export const RescheduleAppointmentRequest = z
   .object({
     hospitalId: z.string().min(1),
+    branchId: z.string().min(1),
     appointmentId: z.string().min(1),
     newDate: z.string().min(1),
     newSession: SessionSchema,

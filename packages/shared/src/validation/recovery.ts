@@ -19,6 +19,8 @@ export type SubmitHealthUpdateResponse = z.infer<typeof SubmitHealthUpdateRespon
 /** FR-14.1. patient only, own medicineLogs entry. */
 export const LogMedicineStatusRequest = z
   .object({
+    hospitalId: z.string().min(1),
+    branchId: z.string().min(1),
     medicineLogId: z.string().min(1),
     patientStatus: z.enum(["taken", "missed", "skipped"]),
   })
