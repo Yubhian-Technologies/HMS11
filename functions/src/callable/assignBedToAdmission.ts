@@ -1,6 +1,6 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
-import { AssignBedToAdmissionRequest } from "@hms/shared";
+import { AssignBedToAdmissionRequest, branchCollection } from "@hms/shared";
 import { requireCallerRole } from "../services/callable-auth";
 import { assertOwnHospital } from "../services/scope-checks";
 
@@ -26,8 +26,8 @@ export const assignBedToAdmission = onCall(async (request) => {
   }
 
   const db = getFirestore();
-  const admissionRef = db.collection("admissions").doc(admissionId);
-  const bedRef = db.collection("beds").doc(bedId);
+  const admissionRef = db.collection(branchCollection(hospitalId, branchId, "admissions")).doc(admissionId);
+  const bedRef = db.collection(branchCollection(hospitalId, branchId, "beds")).doc(bedId);
 
   await db.runTransaction(async (tx) => {
     // Both docs must be read *inside* the transaction (not via the plain
@@ -39,7 +39,7 @@ export const assignBedToAdmission = onCall(async (request) => {
     const admission = admissionSnap.data();
     const bed = bedSnap.data();
 
-    if (!admissionSnap.exists || admission?.hospitalId !== hospitalId || admission?.branchId !== branchId) {
+    if (!admissionSnap.exists) {
       throw new HttpsError("not-found", "Admission request not found.");
     }
     if (caller.role === "doctor" && admission?.doctorId !== caller.uid) {
@@ -48,7 +48,7 @@ export const assignBedToAdmission = onCall(async (request) => {
     if (admission?.status !== "pendingBedAssignment") {
       throw new HttpsError("failed-precondition", "This admission is not awaiting a bed assignment.");
     }
-    if (!bedSnap.exists || bed?.hospitalId !== hospitalId || bed?.branchId !== branchId) {
+    if (!bedSnap.exists) {
       throw new HttpsError("not-found", "Bed not found.");
     }
     if (bed?.status !== "available") {

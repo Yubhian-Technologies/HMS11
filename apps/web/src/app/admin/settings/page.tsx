@@ -37,7 +37,7 @@ export default async function SettingsPage({
     return <p className="text-sm text-muted-foreground">No branches yet — add one under Hospitals.</p>;
   }
 
-  const holidays = await listHolidays(branch.id);
+  const holidays = await listHolidays(hospitalId, branch.id);
 
   return (
     <div className="flex flex-col gap-6">
@@ -92,8 +92,13 @@ export default async function SettingsPage({
                   <Badge variant={holiday.status === "active" ? "success" : "destructive"} className="w-20 justify-center">
                     {holiday.status}
                   </Badge>
-                  <HolidayStatusToggle hospitalId={hospitalId} holidayId={holiday.id} status={holiday.status} />
-                  <DeleteHolidayButton hospitalId={hospitalId} holidayId={holiday.id} />
+                  <HolidayStatusToggle
+                    hospitalId={hospitalId}
+                    branchId={branch.id}
+                    holidayId={holiday.id}
+                    status={holiday.status}
+                  />
+                  <DeleteHolidayButton hospitalId={hospitalId} branchId={branch.id} holidayId={holiday.id} />
                 </div>
               </div>
             ))

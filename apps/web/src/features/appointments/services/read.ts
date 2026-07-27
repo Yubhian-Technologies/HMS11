@@ -1,6 +1,6 @@
 import "server-only";
 import { getAdminDb } from "@/server/firebase-admin";
-import type { Appointment, DoctorProfile, User } from "@hms/shared";
+import { branchCollection, type Appointment, type DoctorProfile, type User } from "@hms/shared";
 
 export type AppointmentRecord = Appointment & { id: string };
 export type DoctorWithProfile = { id: string; name: string; profile: DoctorProfile };
@@ -11,12 +11,12 @@ function SESSION_ORDER(session: Appointment["session"]): number {
 
 export async function listDoctorsByDepartment(
   hospitalId: string,
+  branchId: string,
   departmentId: string,
 ): Promise<DoctorWithProfile[]> {
   const db = getAdminDb();
   const profilesSnap = await db
-    .collection("doctorProfiles")
-    .where("hospitalId", "==", hospitalId)
+    .collection(branchCollection(hospitalId, branchId, "doctors"))
     .where("departmentId", "==", departmentId)
     .where("status", "==", "active")
     .get();
@@ -32,55 +32,80 @@ export async function listDoctorsByDepartment(
 }
 
 export async function listBranchAppointmentsForDate(
+  hospitalId: string,
   branchId: string,
   date: string,
 ): Promise<AppointmentRecord[]> {
   const snap = await getAdminDb()
-    .collection("appointments")
-    .where("branchId", "==", branchId)
+    .collection(branchCollection(hospitalId, branchId, "appointments"))
     .where("date", "==", date)
-    .orderBy("startTime", "asc")
     .get();
   return snap.docs.map((doc) => ({ id: doc.id, ...(doc.data() as Appointment) }));
 }
 
 /**
- * Same data, spanning the rolling 3-day window instead of a single date —
- * reuses the already-indexed per-date query (branchId + date + startTime)
- * so no new composite index is needed. Office views (Appointments, Daily
- * Schedule, Waiting List) all need this: a patient can book any day in the
- * window, not just today.
+ * Same data, spanning the rolling 3-day window instead of a single date.
+ * Office views (Appointments, Daily Schedule, Waiting List) all need this: a
+ * patient can book any day in the window, not just today.
  */
 export async function listBranchAppointmentsForDates(
+  hospitalId: string,
   branchId: string,
   dates: string[],
 ): Promise<AppointmentRecord[]> {
-  const perDate = await Promise.all(dates.map((date) => listBranchAppointmentsForDate(branchId, date)));
+  const perDate = await Promise.all(dates.map((date) => listBranchAppointmentsForDate(hospitalId, branchId, date)));
   return perDate.flat();
 }
 
-/** Doctor's live queue — both normal and emergency appointments reach "checkedIn" via the same Reception flow. */
-export async function listDoctorQueue(doctorId: string, date: string): Promise<AppointmentRecord[]> {
+/** Doctor's live queue — consults happen once vitals are recorded (Nurse), status "VITALS_COMPLETED". */
+export async function listDoctorQueue(
+  hospitalId: string,
+  branchId: string,
+  doctorId: string,
+  date: string,
+): Promise<AppointmentRecord[]> {
   const snap = await getAdminDb()
-    .collection("appointments")
+    .collection(branchCollection(hospitalId, branchId, "appointments"))
     .where("doctorId", "==", doctorId)
     .where("date", "==", date)
-    .where("status", "==", "checkedIn")
+    .where("status", "==", "VITALS_COMPLETED")
     .get();
   return snap.docs
     .map((doc) => ({ id: doc.id, ...(doc.data() as Appointment) }))
     .sort((a, b) => b.priority - a.priority || SESSION_ORDER(a.session) - SESSION_ORDER(b.session));
 }
 
-export async function getAppointment(appointmentId: string): Promise<AppointmentRecord | null> {
-  const doc = await getAdminDb().collection("appointments").doc(appointmentId).get();
+/** Nurse's queue — patients checked in by Reception, awaiting vitals. */
+export async function listNurseQueue(
+  hospitalId: string,
+  branchId: string,
+  date: string,
+): Promise<AppointmentRecord[]> {
+  const snap = await getAdminDb()
+    .collection(branchCollection(hospitalId, branchId, "appointments"))
+    .where("date", "==", date)
+    .where("status", "==", "CHECKED_IN")
+    .get();
+  return snap.docs.map((doc) => ({ id: doc.id, ...(doc.data() as Appointment) }));
+}
+
+export async function getAppointment(
+  hospitalId: string,
+  branchId: string,
+  appointmentId: string,
+): Promise<AppointmentRecord | null> {
+  const doc = await getAdminDb()
+    .collection(branchCollection(hospitalId, branchId, "appointments"))
+    .doc(appointmentId)
+    .get();
   if (!doc.exists) return null;
   return { id: doc.id, ...(doc.data() as Appointment) };
 }
 
+/** Patient's own cross-hospital timeline — the one view that genuinely needs a collectionGroup query. */
 export async function listPatientAppointments(patientId: string): Promise<AppointmentRecord[]> {
   const snap = await getAdminDb()
-    .collection("appointments")
+    .collectionGroup("appointments")
     .where("patientId", "==", patientId)
     .orderBy("date", "desc")
     .limit(50)

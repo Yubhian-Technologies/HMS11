@@ -7,10 +7,12 @@ import { setLabTestStatus } from "../services/labTests";
 
 export function LabTestStatusToggle({
   hospitalId,
+  branchId,
   testId,
   status,
 }: {
   hospitalId: string;
+  branchId: string;
   testId: string;
   status: "active" | "disabled";
 }) {
@@ -18,7 +20,7 @@ export function LabTestStatusToggle({
 
   async function handleToggle(nextStatus: "active" | "disabled") {
     try {
-      await setLabTestStatus({ hospitalId, testId, status: nextStatus });
+      await setLabTestStatus({ hospitalId, branchId, testId, status: nextStatus });
       toast.success(`Test ${nextStatus === "active" ? "enabled" : "disabled"}.`);
       router.refresh();
     } catch (err) {

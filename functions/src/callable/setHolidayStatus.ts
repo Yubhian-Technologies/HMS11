@@ -1,6 +1,6 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { getFirestore } from "firebase-admin/firestore";
-import { SetHolidayStatusRequest } from "@hms/shared";
+import { SetHolidayStatusRequest, branchCollection } from "@hms/shared";
 import { writeWithAudit } from "@hms/shared-server";
 import { requireCallerRole } from "../services/callable-auth";
 import { assertOwnHospital } from "../services/scope-checks";
@@ -8,17 +8,17 @@ import { assertOwnHospital } from "../services/scope-checks";
 /** FR-3.4. admin only, own hospital. */
 export const setHolidayStatus = onCall(async (request) => {
   const caller = requireCallerRole(request, ["admin"]);
-  const { hospitalId, holidayId, status } = SetHolidayStatusRequest.parse(request.data);
+  const { hospitalId, branchId, holidayId, status } = SetHolidayStatusRequest.parse(request.data);
   assertOwnHospital(caller, hospitalId);
 
   const db = getFirestore();
-  const snap = await db.collection("holidays").doc(holidayId).get();
-  if (!snap.exists || snap.data()?.hospitalId !== hospitalId) {
+  const snap = await db.collection(branchCollection(hospitalId, branchId, "holidays")).doc(holidayId).get();
+  if (!snap.exists) {
     throw new HttpsError("not-found", "Holiday not found.");
   }
 
   await writeWithAudit(db, {
-    collection: "holidays",
+    collection: branchCollection(hospitalId, branchId, "holidays"),
     docId: holidayId,
     data: { status },
     action: "statusChange",

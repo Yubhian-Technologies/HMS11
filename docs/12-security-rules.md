@@ -23,6 +23,14 @@ artifact.
    just left to the service layer, since Cloud Functions using the Admin SDK bypass
    rules entirely — rules are the backstop for direct client writes.
 
+> **Revision note:** with the nested hierarchy adopted in
+> [09-firestore-design.md](./09-firestore-design.md) §9.1, tenant scope is enforced by
+> **path segments** (`hospitalId`/`branchId` bound in the `match` block), not by
+> comparing a claim against a `resource.data` field — see the rewritten helpers below.
+> `firestore.rules` still implements the earlier flat-field version and needs a
+> corresponding rewrite; not yet done as part of this documentation pass — see
+> [10-collections-schema.md](./10-collections-schema.md) Migration Status.
+
 ## 12.2 Core helper functions (pseudocode)
 
 ```
@@ -43,17 +51,18 @@ function isSuperAdmin() {
   return hasRole(['super_admin']);
 }
 
-// Hospital scope — role's hospitalId claim must match the resource
-function isHospitalScoped(resource) {
-  return isSignedIn() && claim('hospitalId') == resource.data.hospitalId;
+// Hospital scope — role's hospitalId claim must match the path segment (not a data field)
+function isHospitalScoped(hospitalId) {
+  return isSignedIn() && claim('hospitalId') == hospitalId;
 }
 
-// Branch scope — hospitalId AND branchId claim must match the resource
-function isBranchScoped(resource) {
-  return isHospitalScoped(resource) && claim('branchId') == resource.data.branchId;
+// Branch scope — hospitalId AND branchId claims must match the path segments
+function isBranchScoped(hospitalId, branchId) {
+  return isHospitalScoped(hospitalId) && claim('branchId') == branchId;
 }
 
-// Ownership scope — patient's own uid must match the resource's patientId (cross-hospital)
+// Ownership scope — patient's own uid must match the resource's patientId (cross-hospital;
+// patients/appointments-by-patientId are the collections this applies to)
 function isOwner(resource) {
   return isSignedIn() && claim('role') == 'patient' && resource.data.patientId == request.auth.uid;
 }
@@ -62,20 +71,21 @@ function isOwner(resource) {
 ## 12.3 Example collection rule (appointments)
 
 ```
-match /appointments/{appointmentId} {
+match /hospitals/{hospitalId}/branches/{branchId}/appointments/{appointmentId} {
   allow read: if isSuperAdmin()
-    || isHospitalScoped(resource)                              // admin
-    || isBranchScoped(resource)                                 // office/reception/doctor, own branch
-    || isOwner(resource);                                       // patient, own record
+    || isHospitalScoped(hospitalId)                             // admin
+    || isBranchScoped(hospitalId, branchId)                     // office/reception/nurse/doctor, own branch
+    || isOwner(resource);                                       // patient, own record (via collectionGroup query)
 
-  allow create: if isOwner(request.resource)                    // patient self-books
-    || (hasRole(['reception']) && isBranchScoped(request.resource));
+  allow create: if (hasRole(['patient']) && request.resource.data.patientId == request.auth.uid)
+    || (hasRole(['reception']) && isBranchScoped(hospitalId, branchId));
 
-  allow update: if hasRole(['office']) && isBranchScoped(resource)   // approve/reject/reschedule
-    || (hasRole(['doctor']) && isBranchScoped(resource) && onlyStatusOrClinicalFieldsChanged())
-    || (hasRole(['reception']) && isBranchScoped(resource) && onlyCheckInFieldsChanged());
+  allow update: if (hasRole(['office']) && isBranchScoped(hospitalId, branchId))       // approve/reject/reschedule
+    || (hasRole(['nurse']) && isBranchScoped(hospitalId, branchId) && onlyVitalsFieldsChanged())
+    || (hasRole(['doctor']) && isBranchScoped(hospitalId, branchId) && onlyClinicalFieldsChanged())
+    || (hasRole(['reception']) && isBranchScoped(hospitalId, branchId) && onlyCheckInFieldsChanged());
 
-  allow delete: if false;   // no hard deletes anywhere — NFR-7.1
+  allow delete: if false;   // no hard deletes anywhere
 }
 ```
 
@@ -84,6 +94,9 @@ doc 08's row for that collection; `create`/`update` are split out per-role where
 different roles are allowed to touch different fields (enforced via a
 `onlyFieldsChanged(['a','b'])` helper, not by giving blanket update access); `delete`
 is `false` everywhere except truly disposable draft data (none currently identified).
+`patients` and `users` keep their flat top-level rule shape (path has no
+`hospitalId`/`branchId` segments to bind, per §9.1.2), unchanged from the original
+flat-collection design.
 
 ## 12.4 Tenant isolation test
 

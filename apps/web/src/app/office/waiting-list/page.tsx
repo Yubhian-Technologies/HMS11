@@ -13,7 +13,7 @@ export default async function WaitingListPage() {
 
   const dates = rollingWindowDates();
   const [appointments, doctors] = await Promise.all([
-    listBranchAppointmentsForDates(branchId, dates),
+    listBranchAppointmentsForDates(hospitalId, branchId, dates),
     listStaffByRole(hospitalId, "doctor"),
   ]);
   const doctorName = new Map(doctors.map((d) => [d.id, d.name]));

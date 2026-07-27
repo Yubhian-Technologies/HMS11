@@ -7,13 +7,17 @@ import { sendNotification } from "../notifications/sendNotification";
  * the idempotency guard (NFR-2.2) — without it, a due-but-still-pending
  * entry would get re-notified on every single run until the patient marks
  * it, since "pending" alone doesn't change between runs.
+ *
+ * `medicineLogs` is nested per branch now (it carries hospitalId/branchId —
+ * dispensed at a specific branch) — this scan runs across every
+ * hospital/branch, so it uses `collectionGroup()`.
  */
 export const dispatchMedicineReminders = onSchedule("every 15 minutes", async () => {
   const db = getFirestore();
   const now = Timestamp.now();
 
   const snap = await db
-    .collection("medicineLogs")
+    .collectionGroup("medicineLogs")
     .where("patientStatus", "==", "pending")
     .where("reminderSentAt", "==", null)
     .where("scheduledAt", "<=", now)

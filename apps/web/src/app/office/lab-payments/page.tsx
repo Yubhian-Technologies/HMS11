@@ -9,7 +9,7 @@ export default async function OfficeLabPaymentsPage() {
   if (!session?.hospitalId || !session.branchId) redirect("/login");
   const { hospitalId, branchId } = session;
 
-  const orders = await listPendingPaymentLabOrders(branchId);
+  const orders = await listPendingPaymentLabOrders(hospitalId, branchId);
 
   return (
     <div className="flex flex-col gap-6">
@@ -28,7 +28,7 @@ export default async function OfficeLabPaymentsPage() {
                 className="flex items-center justify-between rounded-md border border-border p-3 text-sm"
               >
                 <span className="font-medium text-foreground">{order.testName}</span>
-                <MarkLabOrderPaidButton hospitalId={hospitalId} labOrderId={order.id} />
+                <MarkLabOrderPaidButton hospitalId={hospitalId} branchId={branchId} labOrderId={order.id} />
               </div>
             ))
           )}

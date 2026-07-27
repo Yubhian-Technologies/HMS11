@@ -19,10 +19,12 @@ import { dischargePatient } from "../services/admissions";
 
 export function DischargeDialog({
   hospitalId,
+  branchId,
   admissionId,
   patientName,
 }: {
   hospitalId: string;
+  branchId: string;
   admissionId: string;
   patientName: string;
 }) {
@@ -40,6 +42,7 @@ export function DischargeDialog({
     try {
       await dischargePatient({
         hospitalId,
+        branchId,
         admissionId,
         diagnosis,
         treatmentGiven,

@@ -1,5 +1,5 @@
 import { FieldValue, type Firestore, type Transaction } from "firebase-admin/firestore";
-import type { Session } from "@hms/shared";
+import { branchCollection, doctorCollection, type Session } from "@hms/shared";
 
 export interface WaitlistPromotion {
   appointmentId: string;
@@ -27,17 +27,26 @@ export interface WaitlistPromotion {
 export async function freeSlotAndPromoteWaitlist(
   db: Firestore,
   tx: Transaction,
-  params: { doctorId: string; date: string; session: Session; bookedVia: "online" | "walkin" },
+  params: {
+    hospitalId: string;
+    branchId: string;
+    doctorId: string;
+    date: string;
+    session: Session;
+    bookedVia: "online" | "walkin";
+  },
 ): Promise<WaitlistPromotion | null> {
   const now = FieldValue.serverTimestamp();
-  const poolRef = db.collection("doctorSlots").doc(`${params.doctorId}_${params.date}_${params.session}`);
+  const poolRef = db
+    .collection(doctorCollection(params.hospitalId, params.branchId, params.doctorId, "slots"))
+    .doc(`${params.date}_${params.session}`);
 
   const waitingListQuery = await tx.get(
     db
-      .collection("appointments")
+      .collection(branchCollection(params.hospitalId, params.branchId, "appointments"))
       .where("doctorId", "==", params.doctorId)
       .where("date", "==", params.date)
-      .where("status", "==", "pending")
+      .where("status", "==", "PENDING")
       .where("waitingListPosition", ">", 0)
       .orderBy("waitingListPosition", "asc")
       .limit(1),
@@ -56,7 +65,7 @@ export async function freeSlotAndPromoteWaitlist(
     date: params.date,
     session: params.session,
     bookedVia: params.bookedVia,
-    status: "approved",
+    status: "BOOKED",
     waitingListPosition: null,
     updatedAt: now,
   });

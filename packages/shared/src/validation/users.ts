@@ -1,17 +1,17 @@
 import { z } from "zod";
 
 /**
- * FR-3.1: Admin creates these four staff role types through
+ * FR-3.1: Admin creates these five staff role types through
  * `createStaffAccount`. Doctor has its own `createDoctorAccount` action
  * (validation/staff.ts) since it requires additional clinical fields
  * (department, specialization, consultation fee — FR-3.2, FR-3.3).
- * super_admin, patient, and nurse are never created through either action
+ * super_admin and patient are never created through either action
  * (see docs/07-user-roles.md §7.2 provisioning rules).
  */
-export const StaffRole = z.enum(["office", "reception", "pharmacy", "lab"]);
+export const StaffRole = z.enum(["office", "reception", "nurse", "pharmacy", "lab"]);
 
-/** All five roles Admin can provision, spanning both creation actions. */
-export const ManagedStaffRole = z.enum(["office", "reception", "doctor", "pharmacy", "lab"]);
+/** All six roles Admin can provision, spanning both creation actions. */
+export const ManagedStaffRole = z.enum(["office", "reception", "nurse", "doctor", "pharmacy", "lab"]);
 
 export const CreateStaffAccountRequest = z
   .object({

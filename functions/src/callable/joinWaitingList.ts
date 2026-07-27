@@ -1,6 +1,6 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { getFirestore } from "firebase-admin/firestore";
-import { JoinWaitingListRequest, JoinWaitingListResponse } from "@hms/shared";
+import { JoinWaitingListRequest, JoinWaitingListResponse, branchCollection } from "@hms/shared";
 import { writeWithAudit } from "@hms/shared-server";
 import { requireCallerRole } from "../services/callable-auth";
 import { assertOwnHospital } from "../services/scope-checks";
@@ -27,7 +27,7 @@ export const joinWaitingList = onCall(async (request) => {
   }
 
   const countSnap = await db
-    .collection("appointments")
+    .collection(branchCollection(input.hospitalId, input.branchId, "appointments"))
     .where("doctorId", "==", input.doctorId)
     .where("date", "==", input.date)
     .where("waitingListPosition", ">", 0)
@@ -36,7 +36,7 @@ export const joinWaitingList = onCall(async (request) => {
   const waitingListPosition = countSnap.data().count + 1;
 
   const appointmentId = await writeWithAudit(db, {
-    collection: "appointments",
+    collection: branchCollection(input.hospitalId, input.branchId, "appointments"),
     data: {
       patientId: input.patientId,
       patientName: patientSnap.data()?.name ?? "",
@@ -47,9 +47,10 @@ export const joinWaitingList = onCall(async (request) => {
       date: input.date,
       session: null,
       bookedVia: null,
-      startTime: null,
-      token: null,
-      status: "pending",
+      checkIn: null,
+      vitals: null,
+      consultationSummary: null,
+      status: "PENDING",
       waitingListPosition,
       hospitalId: input.hospitalId,
       branchId: input.branchId,

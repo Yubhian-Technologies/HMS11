@@ -26,12 +26,20 @@ plan. Read in order — later documents assume decisions made in earlier ones.
 
 ## Key decisions at a glance
 
-- **Multi-tenancy**: flat top-level Firestore collections with `hospitalId`/
-  `branchId` fields (not per-hospital subcollections or databases) — doc 09 §9.1.
+- **Multi-tenancy**: nested subcollections under
+  `hospitals/{hospitalId}/branches/{branchId}/...` for branch-operational data;
+  `patients` and `users` remain flat top-level (global/ownership-scoped) — doc 09
+  §9.1, superseding the earlier flat-everywhere decision; see doc 10 Migration
+  Status for what this means for the current (still-flat) implementation.
+- **Nurse role**: activated as a live Phase 1 role (vitals capture, ward care),
+  no longer deferred — doc 07, doc 08.
 - **Patient access**: web portal ships in Phase 1, not deferred to Phase 2 Flutter —
   doc 01 §1.5 (#2).
 - **Slot generation**: automated from a recurring weekly template, doctor-approved —
   doc 02 §2.
+- **Appointment lifecycle**: fully embedded in the appointment document (check-in,
+  vitals, consultation summary as lifecycle fields; no separate `vitals` or
+  `consultations` collections) — doc 10 §10.6.
 - **Billing**: internal records only in Phase 1, no payment gateway — doc 01 §1.5 (#4).
 - **Audit logging**: foundational infrastructure (Module 1), not a late module —
   doc 02 §8.
@@ -40,6 +48,11 @@ plan. Read in order — later documents assume decisions made in earlier ones.
 
 ## Status
 
-Documentation complete. Implementation proceeds module-by-module per
-[18-development-roadmap.md](./18-development-roadmap.md), starting with the repo
-scaffold and Module 1 (Foundation: Auth/RBAC/Audit).
+Documentation complete, including the full collection schema (doc 10) and API design
+(doc 14). **Doc 09's nested-hierarchy revision and the Nurse role activation are not
+yet reflected in `firestore.rules`, `firestore.indexes.json`, or
+`functions/src/callable/*`**, which still implement the earlier flat-collection,
+Reception-captures-vitals design — migrating them is a follow-up implementation task,
+not covered by this documentation pass (see doc 10's Migration Status section for the
+full gap list). Implementation otherwise proceeds module-by-module per
+[18-development-roadmap.md](./18-development-roadmap.md).

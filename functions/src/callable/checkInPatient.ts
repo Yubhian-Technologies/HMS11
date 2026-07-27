@@ -1,15 +1,16 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
-import { getFirestore } from "firebase-admin/firestore";
-import { CheckInPatientRequest, CheckInPatientResponse } from "@hms/shared";
-import { writeWithAudit } from "@hms/shared-server";
+import { FieldValue, getFirestore } from "firebase-admin/firestore";
+import { CheckInPatientRequest, CheckInPatientResponse, branchCollection } from "@hms/shared";
 import { requireCallerRole } from "../services/callable-auth";
 import { assertOwnHospital } from "../services/scope-checks";
 
 /**
  * FR-8.1. reception only, own branch. Token is a simple sequential counter
  * per branch+day — count of already-checked-in-or-past appointments today,
- * plus one. Good enough for a single front desk's daily queue; not
- * globally unique across branches (never needs to be).
+ * plus one. Good enough for a single front desk's daily queue; not globally
+ * unique across branches (never needs to be). Sets the embedded `checkIn`
+ * field (docs/10-collections-schema.md §10.6) — vitals capture is a
+ * separate, later step owned by Nurse (recordVitals.ts), not this callable.
  */
 export const checkInPatient = onCall(async (request) => {
   const caller = requireCallerRole(request, ["reception"]);
@@ -21,32 +22,42 @@ export const checkInPatient = onCall(async (request) => {
   }
 
   const db = getFirestore();
-  const apptRef = db.collection("appointments").doc(appointmentId);
+  const appointmentsCollection = branchCollection(hospitalId, branchId, "appointments");
+  const apptRef = db.collection(appointmentsCollection).doc(appointmentId);
   const apptSnap = await apptRef.get();
   const appt = apptSnap.data();
-  if (!apptSnap.exists || appt?.hospitalId !== hospitalId || appt?.branchId !== branchId) {
+  if (!apptSnap.exists) {
     throw new HttpsError("not-found", "Appointment not found.");
   }
-  if (appt?.status !== "approved") {
-    throw new HttpsError("failed-precondition", "Only an approved appointment can be checked in.");
+  if (appt?.status !== "BOOKED") {
+    throw new HttpsError("failed-precondition", "Only an approved (booked) appointment can be checked in.");
   }
 
   const countSnap = await db
-    .collection("appointments")
-    .where("branchId", "==", branchId)
+    .collection(appointmentsCollection)
     .where("date", "==", appt.date)
-    .where("token", "!=", null)
+    .where("checkIn", "!=", null)
     .count()
     .get();
   const token = String(countSnap.data().count + 1).padStart(3, "0");
+  const now = FieldValue.serverTimestamp();
 
-  await writeWithAudit(db, {
-    collection: "appointments",
-    docId: appointmentId,
-    data: { status: "checkedIn", token },
+  await apptRef.update({
+    checkIn: { checkedInAt: now, checkedInBy: caller.uid, token },
+    status: "CHECKED_IN",
+    updatedAt: now,
+  });
+
+  await db.collection("auditLogs").doc().set({
+    hospitalId,
+    actorId: caller.uid,
+    actorRole: caller.role,
     action: "statusChange",
-    before: appt,
-    context: { actorId: caller.uid, actorRole: caller.role, hospitalId },
+    entityType: "appointments",
+    entityId: appointmentId,
+    before: { status: "BOOKED" },
+    after: { status: "CHECKED_IN", token },
+    createdAt: now,
   });
 
   return CheckInPatientResponse.parse({ token });

@@ -55,7 +55,7 @@ export function LabTestFormDialog({
     try {
       const payload = { ...form, price: Number(form.price) };
       if (existing) {
-        await updateLabTest({ hospitalId, testId: existing.id, ...payload });
+        await updateLabTest({ hospitalId, branchId, testId: existing.id, ...payload });
         toast.success(`"${form.name}" updated.`);
       } else {
         await createLabTest({ hospitalId, branchId, ...payload });

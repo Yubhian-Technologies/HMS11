@@ -28,17 +28,17 @@ export default async function OfficeAppointmentsPage({
 
   const dates = rollingWindowDates();
   const [appointments, patients, doctors, doctorProfiles] = await Promise.all([
-    listBranchAppointmentsForDates(branchId, dates),
+    listBranchAppointmentsForDates(hospitalId, branchId, dates),
     listWalkInPatients(hospitalId, branchId),
     listStaffByRole(hospitalId, "doctor"),
-    listDoctorProfiles(hospitalId),
+    listDoctorProfiles(hospitalId, branchId),
   ]);
   const branchDoctors = doctors.filter((d) => d.branchId === branchId);
   const departmentIdByDoctor = new Map(doctorProfiles.map((p) => [p.id, p.departmentId]));
 
   const doctorProfilesById = new Map(doctors.map((d) => [d.id, d.name]));
-  const pending = appointments.filter((a) => a.status === "pending");
-  const approved = appointments.filter((a) => a.status === "approved");
+  const pending = appointments.filter((a) => a.status === "PENDING");
+  const approved = appointments.filter((a) => a.status === "BOOKED");
   const emergency = appointments.filter((a) => a.type === "emergency");
 
   function Row({ appt }: { appt: (typeof appointments)[number] }) {
@@ -54,9 +54,14 @@ export default async function OfficeAppointmentsPage({
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Badge variant={appt.status === "approved" ? "default" : "destructive"}>{appt.status}</Badge>
-          <AppointmentActionButtons hospitalId={hospitalId} appointmentId={appt.id} status={appt.status} />
-          {appt.status === "approved" && appt.session ? (
+          <Badge variant={appt.status === "BOOKED" ? "default" : "destructive"}>{appt.status}</Badge>
+          <AppointmentActionButtons
+            hospitalId={hospitalId}
+            branchId={branchId}
+            appointmentId={appt.id}
+            status={appt.status}
+          />
+          {appt.status === "BOOKED" && appt.session ? (
             <Button
               size="sm"
               variant="outline"

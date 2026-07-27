@@ -1,6 +1,6 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
-import { SetAppointmentStatusRequest } from "@hms/shared";
+import { SetAppointmentStatusRequest, branchCollection } from "@hms/shared";
 import { writeWithAudit } from "@hms/shared-server";
 import { requireCallerRole } from "../services/callable-auth";
 import { assertOwnHospital } from "../services/scope-checks";
@@ -8,15 +8,15 @@ import { freeSlotAndPromoteWaitlist, type WaitlistPromotion } from "../services/
 import { sendNotification } from "../notifications/sendNotification";
 
 const STATUS_MESSAGE: Record<string, { title: string; body: (appt: FirebaseFirestore.DocumentData) => string }> = {
-  approved: {
+  BOOKED: {
     title: "Appointment confirmed",
     body: (appt) => `Your ${appt.session ?? ""} appointment on ${appt.date} is confirmed.`,
   },
-  rejected: {
+  REJECTED: {
     title: "Appointment not approved",
     body: (appt) => `Your appointment request on ${appt.date} was not approved. Please book another session.`,
   },
-  cancelled: {
+  CANCELLED: {
     title: "Appointment cancelled",
     body: (appt) => `Your ${appt.session ?? ""} appointment on ${appt.date} was cancelled.`,
   },
@@ -30,28 +30,29 @@ const STATUS_MESSAGE: Record<string, { title: string; body: (appt: FirebaseFires
  */
 export const setAppointmentStatus = onCall(async (request) => {
   const caller = requireCallerRole(request, ["office"]);
-  const { hospitalId, appointmentId, status } = SetAppointmentStatusRequest.parse(request.data);
+  const { hospitalId, branchId, appointmentId, status } = SetAppointmentStatusRequest.parse(request.data);
   assertOwnHospital(caller, hospitalId);
 
-  const db = getFirestore();
-  const apptRef = db.collection("appointments").doc(appointmentId);
-  const apptSnap = await apptRef.get();
-  const appt = apptSnap.data();
-  if (!apptSnap.exists || appt?.hospitalId !== hospitalId) {
-    throw new HttpsError("not-found", "Appointment not found.");
-  }
-  if (caller.branchId !== appt?.branchId) {
+  if (caller.branchId !== branchId) {
     throw new HttpsError("permission-denied", "You can only manage appointments in your own branch.");
   }
 
+  const db = getFirestore();
+  const apptRef = db.collection(branchCollection(hospitalId, branchId, "appointments")).doc(appointmentId);
+  const apptSnap = await apptRef.get();
+  const appt = apptSnap.data();
+  if (!apptSnap.exists) {
+    throw new HttpsError("not-found", "Appointment not found.");
+  }
+
   const freesSlot =
-    (status === "rejected" || status === "cancelled") &&
+    (status === "REJECTED" || status === "CANCELLED") &&
     appt?.session &&
-    (appt?.status === "pending" || appt?.status === "approved");
+    (appt?.status === "PENDING" || appt?.status === "BOOKED");
 
   if (!freesSlot) {
     await writeWithAudit(db, {
-      collection: "appointments",
+      collection: branchCollection(hospitalId, branchId, "appointments"),
       docId: appointmentId,
       data: { status },
       action: "statusChange",
@@ -66,6 +67,8 @@ export const setAppointmentStatus = onCall(async (request) => {
     const now = FieldValue.serverTimestamp();
 
     const result = await freeSlotAndPromoteWaitlist(db, tx, {
+      hospitalId,
+      branchId,
       doctorId: appt.doctorId as string,
       date: appt.date as string,
       session: appt.session as "morning" | "afternoon",

@@ -1,6 +1,6 @@
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
-import type { Session } from "@hms/shared";
+import { branchCollection, doctorCollection, type Session } from "@hms/shared";
 import { addDays, todayIso, weekdayOf } from "../services/datetime";
 
 const SESSIONS: { key: Session; countField: "morningSlots" | "afternoonSlots"; reservedField: "morningWalkInReserved" | "afternoonWalkInReserved" }[] = [
@@ -16,6 +16,11 @@ const SESSIONS: { key: Session; countField: "morningSlots" | "afternoonSlots"; r
  * idempotent by construction (a retried/duplicate invocation just no-ops on
  * `create()` failing for a doc that already exists, NFR-2.2), no query
  * needed to check for prior generation.
+ *
+ * `availabilityTemplates` is nested under `.../doctors/{doctorId}/` now
+ * (docs/10-collections-schema.md) — this scan runs across every
+ * hospital/branch/doctor, so it must use `collectionGroup()`, backed by the
+ * `(status, weekday)` collection-group index in firestore.indexes.json.
  */
 export const generateRollingSlots = onSchedule("every day 02:00", async () => {
   const db = getFirestore();
@@ -23,17 +28,18 @@ export const generateRollingSlots = onSchedule("every day 02:00", async () => {
   const targetWeekday = weekdayOf(targetDate);
 
   const templatesSnap = await db
-    .collection("doctorAvailabilityTemplates")
+    .collectionGroup("availabilityTemplates")
     .where("status", "==", "active")
     .where("weekday", "==", targetWeekday)
     .get();
 
   for (const templateDoc of templatesSnap.docs) {
     const template = templateDoc.data();
+    // templateDoc.ref.path = hospitals/{h}/branches/{b}/doctors/{doctorId}/availabilityTemplates/{id}
+    const doctorId = templateDoc.ref.parent.parent!.id;
 
     const holidaySnap = await db
-      .collection("holidays")
-      .where("branchId", "==", template.branchId)
+      .collection(branchCollection(template.hospitalId, template.branchId, "holidays"))
       .where("date", "==", targetDate)
       .where("status", "==", "active")
       .limit(1)
@@ -46,10 +52,12 @@ export const generateRollingSlots = onSchedule("every day 02:00", async () => {
       const totalCount = (template[countField] as number) ?? 0;
       if (totalCount <= 0) continue;
 
-      const poolRef = db.collection("doctorSlots").doc(`${template.doctorId}_${targetDate}_${key}`);
+      const poolRef = db
+        .collection(doctorCollection(template.hospitalId, template.branchId, doctorId, "slots"))
+        .doc(`${targetDate}_${key}`);
       try {
         await poolRef.create({
-          doctorId: template.doctorId,
+          doctorId,
           date: targetDate,
           session: key,
           totalCount,

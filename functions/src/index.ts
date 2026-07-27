@@ -98,6 +98,9 @@ export { assignMedicineOrder } from "./callable/assignMedicineOrder";
 export { dischargePatient } from "./callable/dischargePatient";
 export { assignBedToAdmission } from "./callable/assignBedToAdmission";
 
+// Nurse Ward Care (docs/14-api-design.md §14.2 — Nurse role activation).
+export { updateWardCareStatus } from "./callable/updateWardCareStatus";
+
 // Module 14 — Recovery Tracking (docs/13-cloud-functions.md §13.3).
 export { submitHealthUpdate } from "./callable/submitHealthUpdate";
 export { logMedicineStatus } from "./callable/logMedicineStatus";

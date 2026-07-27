@@ -1,6 +1,6 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
-import { CreateDoctorAccountRequest, CreateDoctorAccountResponse } from "@hms/shared";
+import { CreateDoctorAccountRequest, CreateDoctorAccountResponse, doctorPath, hospitalCollection } from "@hms/shared";
 import { requireCallerRole } from "../services/callable-auth";
 import { createAuthUserOrThrow } from "../services/auth-errors";
 
@@ -22,12 +22,12 @@ export const createDoctorAccount = onCall(async (request) => {
   const db = getFirestore();
   const [branchSnap, departmentSnap] = await Promise.all([
     db.collection(`hospitals/${input.hospitalId}/branches`).doc(input.branchId).get(),
-    db.collection("departments").doc(input.departmentId).get(),
+    db.collection(hospitalCollection(input.hospitalId, "departments")).doc(input.departmentId).get(),
   ]);
   if (!branchSnap.exists) {
     throw new HttpsError("not-found", "Branch not found.");
   }
-  if (!departmentSnap.exists || departmentSnap.data()?.hospitalId !== input.hospitalId) {
+  if (!departmentSnap.exists) {
     throw new HttpsError("not-found", "Department not found in this hospital.");
   }
 
@@ -54,7 +54,7 @@ export const createDoctorAccount = onCall(async (request) => {
       updatedAt: now,
     });
 
-    tx.set(db.collection("doctorProfiles").doc(userRecord.uid), {
+    tx.set(db.doc(doctorPath(input.hospitalId, input.branchId, userRecord.uid)), {
       departmentId: input.departmentId,
       specialization: input.specialization,
       qualifications: input.qualifications,
@@ -86,7 +86,7 @@ export const createDoctorAccount = onCall(async (request) => {
       actorId: caller.uid,
       actorRole: caller.role,
       action: "create",
-      entityType: "doctorProfiles",
+      entityType: "doctors",
       entityId: userRecord.uid,
       before: null,
       after: { departmentId: input.departmentId, specialization: input.specialization },

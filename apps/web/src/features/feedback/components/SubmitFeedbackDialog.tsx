@@ -17,7 +17,15 @@ import {
 } from "@/components/ui/dialog";
 import { submitFeedback } from "../services/feedback";
 
-export function SubmitFeedbackDialog({ appointmentId }: { appointmentId: string }) {
+export function SubmitFeedbackDialog({
+  hospitalId,
+  branchId,
+  appointmentId,
+}: {
+  hospitalId: string;
+  branchId: string;
+  appointmentId: string;
+}) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [rating, setRating] = useState("5");
@@ -29,7 +37,7 @@ export function SubmitFeedbackDialog({ appointmentId }: { appointmentId: string 
     e.preventDefault();
     setSubmitting(true);
     try {
-      await submitFeedback({ appointmentId, rating: Number(rating), comment, isComplaint });
+      await submitFeedback({ hospitalId, branchId, appointmentId, rating: Number(rating), comment, isComplaint });
       toast.success("Thanks for your feedback.");
       setOpen(false);
       router.refresh();

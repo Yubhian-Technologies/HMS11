@@ -7,10 +7,14 @@ import { setAvailabilityTemplateStatus } from "../services/scheduling";
 
 export function TemplateStatusToggle({
   hospitalId,
+  branchId,
+  doctorId,
   templateId,
   status,
 }: {
   hospitalId: string;
+  branchId: string;
+  doctorId: string;
   templateId: string;
   status: "active" | "disabled";
 }) {
@@ -18,7 +22,7 @@ export function TemplateStatusToggle({
 
   async function handleToggle(nextStatus: "active" | "disabled") {
     try {
-      await setAvailabilityTemplateStatus({ hospitalId, templateId, status: nextStatus });
+      await setAvailabilityTemplateStatus({ hospitalId, branchId, doctorId, templateId, status: nextStatus });
       toast.success(`Template ${nextStatus === "active" ? "enabled" : "disabled"}.`);
       router.refresh();
     } catch (err) {

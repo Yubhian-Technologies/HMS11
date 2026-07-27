@@ -21,9 +21,11 @@ export type CreateMedicineInventoryItemRequest = z.infer<typeof CreateMedicineIn
 export const CreateMedicineInventoryItemResponse = z.object({ itemId: z.string() });
 export type CreateMedicineInventoryItemResponse = z.infer<typeof CreateMedicineInventoryItemResponse>;
 
+/** `branchId` required — `medicineInventory` nests under the branch, so admin (not branch-scoped by claim) must say which one. */
 export const UpdateMedicineInventoryItemRequest = z
   .object({
     hospitalId: z.string().min(1),
+    branchId: z.string().min(1),
     itemId: z.string().min(1),
     batchNumber: z.string().min(1).nullish(),
     expiryDate: z.string().min(1).nullish(),
@@ -37,6 +39,7 @@ export type UpdateMedicineInventoryItemRequest = z.infer<typeof UpdateMedicineIn
 export const SetMedicineInventoryItemStatusRequest = z
   .object({
     hospitalId: z.string().min(1),
+    branchId: z.string().min(1),
     itemId: z.string().min(1),
     status: z.enum(["active", "disabled"]),
   })

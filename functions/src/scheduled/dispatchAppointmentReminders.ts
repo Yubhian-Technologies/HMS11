@@ -10,15 +10,18 @@ import { addDays, todayIso } from "../services/datetime";
  * calendar day is trivially idempotent (the target date changes every run,
  * so there's no risk of double-notifying the same appointment) without
  * needing a "reminded" flag, unlike dispatchMedicineReminders below.
+ *
+ * `appointments` is nested per branch now — this scan runs across every
+ * hospital/branch, so it uses `collectionGroup()`.
  */
 export const dispatchAppointmentReminders = onSchedule("every day 08:00", async () => {
   const db = getFirestore();
   const tomorrow = addDays(todayIso(), 1);
 
   const snap = await db
-    .collection("appointments")
+    .collectionGroup("appointments")
     .where("date", "==", tomorrow)
-    .where("status", "==", "approved")
+    .where("status", "==", "BOOKED")
     .get();
 
   await Promise.all(

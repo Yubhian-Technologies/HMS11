@@ -1,6 +1,6 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { getFirestore } from "firebase-admin/firestore";
-import { SubmitFeedbackRequest, SubmitFeedbackResponse } from "@hms/shared";
+import { SubmitFeedbackRequest, SubmitFeedbackResponse, branchCollection } from "@hms/shared";
 import { writeWithAudit } from "@hms/shared-server";
 import { requireCallerRole } from "../services/callable-auth";
 
@@ -10,20 +10,22 @@ export const submitFeedback = onCall(async (request) => {
   const input = SubmitFeedbackRequest.parse(request.data);
 
   const db = getFirestore();
-  const apptSnap = await db.collection("appointments").doc(input.appointmentId).get();
+  const appointmentsCollection = branchCollection(input.hospitalId, input.branchId, "appointments");
+  const apptSnap = await db.collection(appointmentsCollection).doc(input.appointmentId).get();
   const appointment = apptSnap.data();
-  if (!apptSnap.exists) {
+  if (!appointment) {
     throw new HttpsError("not-found", "Appointment not found.");
   }
-  if (appointment?.patientId !== caller.uid) {
+  if (appointment.patientId !== caller.uid) {
     throw new HttpsError("permission-denied", "You can only leave feedback on your own appointments.");
   }
-  if (appointment.status !== "completed") {
+  if (appointment.status !== "COMPLETED") {
     throw new HttpsError("failed-precondition", "Feedback can only be left on a completed appointment.");
   }
 
+  const feedbackCollection = branchCollection(input.hospitalId, input.branchId, "feedback");
   const existing = await db
-    .collection("feedback")
+    .collection(feedbackCollection)
     .where("appointmentId", "==", input.appointmentId)
     .limit(1)
     .get();
@@ -32,7 +34,7 @@ export const submitFeedback = onCall(async (request) => {
   }
 
   const feedbackId = await writeWithAudit(db, {
-    collection: "feedback",
+    collection: feedbackCollection,
     data: {
       appointmentId: input.appointmentId,
       patientId: caller.uid,

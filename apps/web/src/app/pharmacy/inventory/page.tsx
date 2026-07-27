@@ -12,7 +12,7 @@ export default async function PharmacyInventoryPage() {
   if (!session?.hospitalId || !session.branchId) redirect("/login");
   const { hospitalId, branchId } = session;
 
-  const items = await listMedicineInventory(branchId);
+  const items = await listMedicineInventory(hospitalId, branchId);
 
   return (
     <div className="flex flex-col gap-6">
@@ -68,7 +68,12 @@ export default async function PharmacyInventoryPage() {
                         unitPrice: item.unitPrice,
                       }}
                     />
-                    <MedicineInventoryStatusToggle hospitalId={hospitalId} itemId={item.id} status={item.status} />
+                    <MedicineInventoryStatusToggle
+                      hospitalId={hospitalId}
+                      branchId={branchId}
+                      itemId={item.id}
+                      status={item.status}
+                    />
                   </div>
                 </div>
               );

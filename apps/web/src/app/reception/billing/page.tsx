@@ -13,8 +13,8 @@ export default async function ReceptionBillingPage() {
   const { hospitalId, branchId } = session;
 
   const [unbilled, outstanding] = await Promise.all([
-    listUnbilledCompletedAppointments(branchId, todayIsoClient()),
-    listOutstandingInvoicesForBranch(branchId),
+    listUnbilledCompletedAppointments(hospitalId, branchId, todayIsoClient()),
+    listOutstandingInvoicesForBranch(hospitalId, branchId),
   ]);
 
   return (
@@ -63,6 +63,7 @@ export default async function ReceptionBillingPage() {
                 </div>
                 <RecordPaymentDialog
                   hospitalId={hospitalId}
+                  branchId={branchId}
                   invoiceId={inv.id}
                   outstanding={inv.totalAmount - inv.paidAmount}
                 />

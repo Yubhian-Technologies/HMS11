@@ -23,7 +23,15 @@ import { deleteHoliday } from "../services/holidays";
  * (see deleteHoliday callable). This permanently removes the record, unlike
  * HolidayStatusToggle which only disables it.
  */
-export function DeleteHolidayButton({ hospitalId, holidayId }: { hospitalId: string; holidayId: string }) {
+export function DeleteHolidayButton({
+  hospitalId,
+  branchId,
+  holidayId,
+}: {
+  hospitalId: string;
+  branchId: string;
+  holidayId: string;
+}) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -31,7 +39,7 @@ export function DeleteHolidayButton({ hospitalId, holidayId }: { hospitalId: str
   function handleConfirm() {
     startTransition(async () => {
       try {
-        await deleteHoliday({ hospitalId, holidayId });
+        await deleteHoliday({ hospitalId, branchId, holidayId });
         toast.success("Holiday deleted.");
         setOpen(false);
         router.refresh();

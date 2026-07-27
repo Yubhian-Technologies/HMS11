@@ -16,9 +16,11 @@ export type CreateLabTestRequest = z.infer<typeof CreateLabTestRequest>;
 export const CreateLabTestResponse = z.object({ testId: z.string() });
 export type CreateLabTestResponse = z.infer<typeof CreateLabTestResponse>;
 
+/** `branchId` required — `labTestMaster` nests under the branch, so admin (not branch-scoped by claim) must say which one. */
 export const UpdateLabTestRequest = z
   .object({
     hospitalId: z.string().min(1),
+    branchId: z.string().min(1),
     testId: z.string().min(1),
     name: z.string().min(1).nullish(),
     category: z.string().min(1).nullish(),
@@ -31,6 +33,7 @@ export type UpdateLabTestRequest = z.infer<typeof UpdateLabTestRequest>;
 export const SetLabTestStatusRequest = z
   .object({
     hospitalId: z.string().min(1),
+    branchId: z.string().min(1),
     testId: z.string().min(1),
     status: z.enum(["active", "disabled"]),
   })

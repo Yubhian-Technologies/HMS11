@@ -15,7 +15,7 @@ export default async function OfficeDoctorAvailabilityPage() {
     listStaffByRole(hospitalId, "doctor"),
     // Isolated: a missing/pending composite index on this newer collection
     // must degrade this one card, not crash the whole page.
-    listRequestsForBranch(branchId).catch(() => []),
+    listRequestsForBranch(hospitalId, branchId).catch(() => []),
   ]);
   const doctors = allDoctors.filter((d) => d.branchId === branchId);
   const doctorName = new Map(doctors.map((d) => [d.id, d.name]));

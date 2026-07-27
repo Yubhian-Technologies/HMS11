@@ -1,6 +1,6 @@
 import { onCall } from "firebase-functions/v2/https";
 import { getFirestore } from "firebase-admin/firestore";
-import { CreateLabTestRequest, CreateLabTestResponse } from "@hms/shared";
+import { CreateLabTestRequest, CreateLabTestResponse, branchCollection } from "@hms/shared";
 import { writeWithAudit } from "@hms/shared-server";
 import { requireCallerRole } from "../services/callable-auth";
 import { assertOwnHospital, assertBranchExists } from "../services/scope-checks";
@@ -15,7 +15,7 @@ export const createLabTest = onCall(async (request) => {
   await assertBranchExists(db, input.hospitalId, input.branchId);
 
   const testId = await writeWithAudit(db, {
-    collection: "labTestMaster",
+    collection: branchCollection(input.hospitalId, input.branchId, "labTestMaster"),
     data: {
       name: input.name,
       category: input.category,

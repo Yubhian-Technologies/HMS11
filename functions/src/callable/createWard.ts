@@ -1,6 +1,6 @@
 import { onCall } from "firebase-functions/v2/https";
 import { getFirestore } from "firebase-admin/firestore";
-import { CreateWardRequest, CreateWardResponse } from "@hms/shared";
+import { CreateWardRequest, CreateWardResponse, branchCollection } from "@hms/shared";
 import { writeWithAudit } from "@hms/shared-server";
 import { requireCallerRole } from "../services/callable-auth";
 import { assertOwnHospital, assertBranchExists } from "../services/scope-checks";
@@ -15,7 +15,7 @@ export const createWard = onCall(async (request) => {
   await assertBranchExists(db, input.hospitalId, input.branchId);
 
   const wardId = await writeWithAudit(db, {
-    collection: "wards",
+    collection: branchCollection(input.hospitalId, input.branchId, "wards"),
     data: {
       building: input.building,
       floor: input.floor,

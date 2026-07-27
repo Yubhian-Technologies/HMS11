@@ -12,6 +12,9 @@ const MS_PER_DAY = 86_400_000;
  * a standing alert meant to keep nagging until the item is restocked or
  * disabled, not a single ping (per the user's "expiry alert should come
  * everyday" request).
+ *
+ * `medicineInventory` is nested per branch now — this scan runs across
+ * every hospital/branch, so it uses `collectionGroup()`.
  */
 export const dispatchExpiryAlerts = onSchedule("every day 07:00", async () => {
   const db = getFirestore();
@@ -20,7 +23,7 @@ export const dispatchExpiryAlerts = onSchedule("every day 07:00", async () => {
   // Single equality filter — no composite index needed. Filtering the
   // expiry window itself happens in memory rather than as a second `where`,
   // so this never needs a (status, expiryDate) composite index either.
-  const snap = await db.collection("medicineInventory").where("status", "==", "active").get();
+  const snap = await db.collectionGroup("medicineInventory").where("status", "==", "active").get();
   const nearExpiry = snap.docs.filter((doc) => {
     const expiryDate = doc.data().expiryDate as string;
     return (new Date(expiryDate).getTime() - now) / MS_PER_DAY <= EXPIRY_WARNING_DAYS;

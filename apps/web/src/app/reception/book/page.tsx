@@ -47,9 +47,7 @@ export default async function ReceptionBookPage({
   }
 
   if (!doctorId) {
-    const doctors = (await listDoctorsByDepartment(hospitalId, departmentId)).filter(
-      (d) => d.profile.branchId === branchId,
-    );
+    const doctors = await listDoctorsByDepartment(hospitalId, branchId, departmentId);
     return (
       <StepCard title="Choose a doctor">
         {doctors.map((d) => (
@@ -64,7 +62,9 @@ export default async function ReceptionBookPage({
   }
 
   const dates = rollingWindowDates();
-  const slots = (await listSlotsForDoctorInRange(doctorId, dates)).filter((s) => s.status === "approved");
+  const slots = (await listSlotsForDoctorInRange(hospitalId, branchId, doctorId, dates)).filter(
+    (s) => s.status === "approved",
+  );
 
   return (
     <div className="flex flex-col gap-6">

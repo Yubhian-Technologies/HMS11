@@ -1,6 +1,6 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
-import { UploadLabReportRequest, UploadLabReportResponse } from "@hms/shared";
+import { UploadLabReportRequest, UploadLabReportResponse, branchCollection } from "@hms/shared";
 import { requireCallerRole } from "../services/callable-auth";
 import { assertOwnHospital } from "../services/scope-checks";
 import { sendNotification } from "../notifications/sendNotification";
@@ -16,22 +16,22 @@ export const uploadLabReport = onCall(async (request) => {
   const caller = requireCallerRole(request, ["lab"]);
   const input = UploadLabReportRequest.parse(request.data);
   assertOwnHospital(caller, input.hospitalId);
+  if (caller.branchId !== input.branchId) {
+    throw new HttpsError("permission-denied", "You can only manage lab orders in your own branch.");
+  }
 
   const db = getFirestore();
-  const orderRef = db.collection("labOrders").doc(input.labOrderId);
+  const orderRef = db.collection(branchCollection(input.hospitalId, input.branchId, "labOrders")).doc(input.labOrderId);
   const orderSnap = await orderRef.get();
   const order = orderSnap.data();
-  if (!orderSnap.exists || order?.hospitalId !== input.hospitalId) {
+  if (!orderSnap.exists) {
     throw new HttpsError("not-found", "Lab order not found.");
-  }
-  if (caller.branchId !== order?.branchId) {
-    throw new HttpsError("permission-denied", "You can only manage lab orders in your own branch.");
   }
   if (order?.status !== "verified") {
     throw new HttpsError("failed-precondition", "The order must be verified before uploading a report.");
   }
 
-  const reportRef = db.collection("labReports").doc();
+  const reportRef = db.collection(branchCollection(input.hospitalId, input.branchId, "labReports")).doc();
 
   await db.runTransaction(async (tx) => {
     const now = FieldValue.serverTimestamp();
@@ -43,7 +43,7 @@ export const uploadLabReport = onCall(async (request) => {
       verifiedBy: caller.uid,
       summaryNotes: input.summaryNotes ?? null,
       hospitalId: input.hospitalId,
-      branchId: order.branchId,
+      branchId: input.branchId,
       status: "active",
       createdBy: caller.uid,
       createdAt: now,

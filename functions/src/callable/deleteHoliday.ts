@@ -1,6 +1,6 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
-import { DeleteHolidayRequest } from "@hms/shared";
+import { DeleteHolidayRequest, branchCollection } from "@hms/shared";
 import { requireCallerRole } from "../services/callable-auth";
 import { assertOwnHospital } from "../services/scope-checks";
 
@@ -14,13 +14,13 @@ import { assertOwnHospital } from "../services/scope-checks";
  */
 export const deleteHoliday = onCall(async (request) => {
   const caller = requireCallerRole(request, ["admin"]);
-  const { hospitalId, holidayId } = DeleteHolidayRequest.parse(request.data);
+  const { hospitalId, branchId, holidayId } = DeleteHolidayRequest.parse(request.data);
   assertOwnHospital(caller, hospitalId);
 
   const db = getFirestore();
-  const ref = db.collection("holidays").doc(holidayId);
+  const ref = db.collection(branchCollection(hospitalId, branchId, "holidays")).doc(holidayId);
   const snap = await ref.get();
-  if (!snap.exists || snap.data()?.hospitalId !== hospitalId) {
+  if (!snap.exists) {
     throw new HttpsError("not-found", "Holiday not found.");
   }
 

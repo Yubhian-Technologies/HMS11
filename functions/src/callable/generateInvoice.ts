@@ -1,6 +1,6 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { getFirestore, Timestamp } from "firebase-admin/firestore";
-import { GenerateInvoiceRequest, GenerateInvoiceResponse } from "@hms/shared";
+import { GenerateInvoiceRequest, GenerateInvoiceResponse, branchCollection, doctorPath } from "@hms/shared";
 import { writeWithAudit } from "@hms/shared-server";
 import { requireCallerRole } from "../services/callable-auth";
 import { assertOwnHospital } from "../services/scope-checks";
@@ -28,14 +28,17 @@ export const generateInvoice = onCall(async (request) => {
   }
 
   const db = getFirestore();
-  const apptSnap = await db.collection("appointments").doc(input.appointmentId).get();
+  const apptSnap = await db
+    .collection(branchCollection(input.hospitalId, input.branchId, "appointments"))
+    .doc(input.appointmentId)
+    .get();
   const appt = apptSnap.data();
-  if (!apptSnap.exists || appt?.hospitalId !== input.hospitalId || appt?.branchId !== input.branchId) {
+  if (!appt) {
     throw new HttpsError("not-found", "Appointment not found.");
   }
 
   const existingSnap = await db
-    .collection("invoices")
+    .collection(branchCollection(input.hospitalId, input.branchId, "invoices"))
     .where("appointmentId", "==", input.appointmentId)
     .limit(1)
     .get();
@@ -46,40 +49,36 @@ export const generateInvoice = onCall(async (request) => {
   const lineItems: LineItem[] = [];
   let admissionId: string | null = null;
 
-  const consultSnap = await db
-    .collection("consultations")
-    .where("appointmentId", "==", input.appointmentId)
-    .orderBy("createdAt", "desc")
-    .limit(1)
-    .get();
+  const consultationSummary = appt?.consultationSummary as { doctorId: string } | null | undefined;
 
-  if (!consultSnap.empty) {
-    const consultation = consultSnap.docs[0]!;
-    const consultationId = consultation.id;
-    const doctorId = consultation.data().doctorId as string;
+  if (consultationSummary) {
+    const doctorId = consultationSummary.doctorId;
 
-    const doctorProfileSnap = await db.collection("doctorProfiles").doc(doctorId).get();
-    const fee = (doctorProfileSnap.data()?.consultationFee as number | undefined) ?? 0;
+    const doctorSnap = await db.doc(doctorPath(input.hospitalId, input.branchId, doctorId)).get();
+    const fee = (doctorSnap.data()?.consultationFee as number | undefined) ?? 0;
     lineItems.push({ type: "consultation", description: "Consultation fee", amount: fee });
 
     const labOrdersSnap = await db
-      .collection("labOrders")
-      .where("consultationId", "==", consultationId)
+      .collection(branchCollection(input.hospitalId, input.branchId, "labOrders"))
+      .where("appointmentId", "==", input.appointmentId)
       .get();
     for (const orderDoc of labOrdersSnap.docs) {
       const order = orderDoc.data();
-      const testSnap = await db.collection("labTestMaster").doc(order.testId as string).get();
+      const testSnap = await db
+        .collection(branchCollection(input.hospitalId, input.branchId, "labTestMaster"))
+        .doc(order.testId as string)
+        .get();
       const price = (testSnap.data()?.price as number | undefined) ?? 0;
       lineItems.push({ type: "lab", description: order.testName as string, amount: price });
     }
 
     const prescriptionsSnap = await db
-      .collection("prescriptions")
-      .where("consultationId", "==", consultationId)
+      .collection(branchCollection(input.hospitalId, input.branchId, "prescriptions"))
+      .where("appointmentId", "==", input.appointmentId)
       .get();
     for (const presDoc of prescriptionsSnap.docs) {
       const dispensesSnap = await db
-        .collection("medicineDispenses")
+        .collection(branchCollection(input.hospitalId, input.branchId, "medicineDispenses"))
         .where("prescriptionId", "==", presDoc.id)
         .get();
       for (const dispenseDoc of dispensesSnap.docs) {
@@ -95,8 +94,8 @@ export const generateInvoice = onCall(async (request) => {
     }
 
     const admissionsSnap = await db
-      .collection("admissions")
-      .where("consultationId", "==", consultationId)
+      .collection(branchCollection(input.hospitalId, input.branchId, "admissions"))
+      .where("appointmentId", "==", input.appointmentId)
       .limit(1)
       .get();
     if (!admissionsSnap.empty) {
@@ -105,10 +104,16 @@ export const generateInvoice = onCall(async (request) => {
       const admission = admissionDoc.data();
 
       if (admission.bedId) {
-        const bedSnap = await db.collection("beds").doc(admission.bedId as string).get();
+        const bedSnap = await db
+          .collection(branchCollection(input.hospitalId, input.branchId, "beds"))
+          .doc(admission.bedId as string)
+          .get();
         const bed = bedSnap.data();
         if (bed?.roomId) {
-          const roomSnap = await db.collection("rooms").doc(bed.roomId as string).get();
+          const roomSnap = await db
+            .collection(branchCollection(input.hospitalId, input.branchId, "rooms"))
+            .doc(bed.roomId as string)
+            .get();
           const dailyRate = (roomSnap.data()?.dailyRate as number | undefined) ?? 0;
 
           const admittedAt = (admission.admittedAt as Timestamp | null)?.toDate();
@@ -130,7 +135,7 @@ export const generateInvoice = onCall(async (request) => {
   const totalAmount = lineItems.reduce((sum, item) => sum + item.amount, 0);
 
   const invoiceId = await writeWithAudit(db, {
-    collection: "invoices",
+    collection: branchCollection(input.hospitalId, input.branchId, "invoices"),
     data: {
       appointmentId: input.appointmentId,
       admissionId,

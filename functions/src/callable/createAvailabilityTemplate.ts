@@ -1,6 +1,6 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { getFirestore } from "firebase-admin/firestore";
-import { CreateAvailabilityTemplateRequest, CreateAvailabilityTemplateResponse } from "@hms/shared";
+import { CreateAvailabilityTemplateRequest, CreateAvailabilityTemplateResponse, doctorPath, doctorCollection } from "@hms/shared";
 import { writeWithAudit } from "@hms/shared-server";
 import { requireCallerRole } from "../services/callable-auth";
 import { assertOwnHospital, assertBranchExists } from "../services/scope-checks";
@@ -18,13 +18,13 @@ export const createAvailabilityTemplate = onCall(async (request) => {
   const db = getFirestore();
   await assertBranchExists(db, input.hospitalId, input.branchId);
 
-  const doctorSnap = await db.collection("doctorProfiles").doc(input.doctorId).get();
-  if (!doctorSnap.exists || doctorSnap.data()?.hospitalId !== input.hospitalId) {
-    throw new HttpsError("not-found", "Doctor not found in this hospital.");
+  const doctorSnap = await db.doc(doctorPath(input.hospitalId, input.branchId, input.doctorId)).get();
+  if (!doctorSnap.exists) {
+    throw new HttpsError("not-found", "Doctor not found in this branch.");
   }
 
   const templateId = await writeWithAudit(db, {
-    collection: "doctorAvailabilityTemplates",
+    collection: doctorCollection(input.hospitalId, input.branchId, input.doctorId, "availabilityTemplates"),
     data: {
       doctorId: input.doctorId,
       weekday: input.weekday,

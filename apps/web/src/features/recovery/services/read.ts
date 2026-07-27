@@ -15,9 +15,10 @@ export async function listHealthUpdates(patientId: string): Promise<HealthUpdate
   return snap.docs.map((doc) => ({ id: doc.id, ...(doc.data() as HealthUpdate) }));
 }
 
+/** `medicineLogs` is nested per branch now — a patient's logs span every branch they've visited. */
 export async function listMedicineLogs(patientId: string): Promise<MedicineLogRecord[]> {
   const snap = await getAdminDb()
-    .collection("medicineLogs")
+    .collectionGroup("medicineLogs")
     .where("patientId", "==", patientId)
     .orderBy("scheduledAt", "desc")
     .limit(60)

@@ -7,10 +7,12 @@ import { setMedicineInventoryItemStatus } from "../services/medicineInventory";
 
 export function MedicineInventoryStatusToggle({
   hospitalId,
+  branchId,
   itemId,
   status,
 }: {
   hospitalId: string;
+  branchId: string;
   itemId: string;
   status: "active" | "disabled";
 }) {
@@ -18,7 +20,7 @@ export function MedicineInventoryStatusToggle({
 
   async function handleToggle(nextStatus: "active" | "disabled") {
     try {
-      await setMedicineInventoryItemStatus({ hospitalId, itemId, status: nextStatus });
+      await setMedicineInventoryItemStatus({ hospitalId, branchId, itemId, status: nextStatus });
       toast.success(`Item ${nextStatus === "active" ? "enabled" : "disabled"}.`);
       router.refresh();
     } catch (err) {

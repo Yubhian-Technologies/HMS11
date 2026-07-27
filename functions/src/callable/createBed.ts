@@ -1,6 +1,6 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { getFirestore } from "firebase-admin/firestore";
-import { CreateBedRequest, CreateBedResponse } from "@hms/shared";
+import { CreateBedRequest, CreateBedResponse, branchCollection } from "@hms/shared";
 import { writeWithAudit } from "@hms/shared-server";
 import { requireCallerRole } from "../services/callable-auth";
 import { assertOwnHospital } from "../services/scope-checks";
@@ -12,13 +12,16 @@ export const createBed = onCall(async (request) => {
   assertOwnHospital(caller, input.hospitalId);
 
   const db = getFirestore();
-  const roomSnap = await db.collection("rooms").doc(input.roomId).get();
-  if (!roomSnap.exists || roomSnap.data()?.hospitalId !== input.hospitalId) {
+  const roomSnap = await db
+    .collection(branchCollection(input.hospitalId, input.branchId, "rooms"))
+    .doc(input.roomId)
+    .get();
+  if (!roomSnap.exists) {
     throw new HttpsError("not-found", "Room not found in this hospital.");
   }
 
   const bedId = await writeWithAudit(db, {
-    collection: "beds",
+    collection: branchCollection(input.hospitalId, input.branchId, "beds"),
     data: {
       roomId: input.roomId,
       wardId: roomSnap.data()?.wardId, // denormalized — docs/10-collections-schema.md

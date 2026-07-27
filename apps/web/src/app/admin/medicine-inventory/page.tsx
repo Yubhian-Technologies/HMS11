@@ -26,7 +26,7 @@ export default async function MedicineInventoryPage({
     return <p className="text-sm text-muted-foreground">No branches yet — add one under Hospitals.</p>;
   }
 
-  const items = await listMedicineInventory(branch.id);
+  const items = await listMedicineInventory(hospitalId, branch.id);
 
   return (
     <div className="flex flex-col gap-6">
@@ -89,7 +89,12 @@ export default async function MedicineInventoryPage({
                         unitPrice: item.unitPrice,
                       }}
                     />
-                    <MedicineInventoryStatusToggle hospitalId={hospitalId} itemId={item.id} status={item.status} />
+                    <MedicineInventoryStatusToggle
+                      hospitalId={hospitalId}
+                      branchId={branch.id}
+                      itemId={item.id}
+                      status={item.status}
+                    />
                   </div>
                 </div>
               );

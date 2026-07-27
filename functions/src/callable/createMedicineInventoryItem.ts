@@ -1,6 +1,6 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { getFirestore } from "firebase-admin/firestore";
-import { CreateMedicineInventoryItemRequest, CreateMedicineInventoryItemResponse } from "@hms/shared";
+import { CreateMedicineInventoryItemRequest, CreateMedicineInventoryItemResponse, branchCollection } from "@hms/shared";
 import { writeWithAudit } from "@hms/shared-server";
 import { requireCallerRole } from "../services/callable-auth";
 import { assertOwnHospital, assertBranchExists } from "../services/scope-checks";
@@ -22,7 +22,7 @@ export const createMedicineInventoryItem = onCall(async (request) => {
   await assertBranchExists(db, input.hospitalId, input.branchId);
 
   const itemId = await writeWithAudit(db, {
-    collection: "medicineInventory",
+    collection: branchCollection(input.hospitalId, input.branchId, "medicineInventory"),
     data: {
       name: input.name,
       batchNumber: input.batchNumber,

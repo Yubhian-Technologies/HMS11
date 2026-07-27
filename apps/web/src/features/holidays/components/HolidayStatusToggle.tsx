@@ -7,10 +7,12 @@ import { setHolidayStatus } from "../services/holidays";
 
 export function HolidayStatusToggle({
   hospitalId,
+  branchId,
   holidayId,
   status,
 }: {
   hospitalId: string;
+  branchId: string;
   holidayId: string;
   status: "active" | "disabled";
 }) {
@@ -18,7 +20,7 @@ export function HolidayStatusToggle({
 
   async function handleToggle(nextStatus: "active" | "disabled") {
     try {
-      await setHolidayStatus({ hospitalId, holidayId, status: nextStatus });
+      await setHolidayStatus({ hospitalId, branchId, holidayId, status: nextStatus });
       toast.success(nextStatus === "active" ? "Holiday restored." : "Holiday removed.");
       router.refresh();
     } catch (err) {

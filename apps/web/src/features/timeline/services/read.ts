@@ -1,16 +1,6 @@
 import "server-only";
 import { getAdminDb } from "@/server/firebase-admin";
-import type {
-  Appointment,
-  Vitals,
-  Consultation,
-  Prescription,
-  LabReport,
-  Admission,
-  FollowUp,
-  MedicineLog,
-  HealthUpdate,
-} from "@hms/shared";
+import type { Appointment, Prescription, LabReport, Admission, FollowUp, MedicineLog, HealthUpdate } from "@hms/shared";
 
 export interface TimelineEntry {
   id: string;
@@ -35,26 +25,27 @@ function toDateString(ts: { toDate(): Date }): string {
 }
 
 /**
- * FR-13.1. The patient's own cross-hospital view — no hospitalId filter,
- * unlike the doctor's consultation-time history (Module 9), which is
- * deliberately scoped to one hospital. A patient's own data follows them
- * everywhere (docs/07-user-roles.md §7.1 ownership scope).
+ * The patient's own cross-hospital view — no hospitalId filter, unlike the
+ * doctor's consultation-time history (features/consultations/services/read.ts),
+ * which is deliberately scoped to one hospital. A patient's own data follows
+ * them everywhere (docs/07-user-roles.md §7.1 ownership scope). Every
+ * collection here is branch-nested now, so every read is a `collectionGroup()`
+ * scan filtered by `patientId`. `vitals`/`consultationSummary` are no longer
+ * separate collections — they're embedded fields read directly off each
+ * `appointments` doc (docs/10-collections-schema.md §10.6).
  */
 export async function getPatientTimeline(patientId: string): Promise<TimelineEntry[]> {
   const db = getAdminDb();
 
-  const [apptSnap, vitalsSnap, consultSnap, presSnap, reportSnap, admSnap, followSnap, medLogSnap, healthSnap] =
-    await Promise.all([
-      db.collection("appointments").where("patientId", "==", patientId).get(),
-      db.collection("vitals").where("patientId", "==", patientId).get(),
-      db.collection("consultations").where("patientId", "==", patientId).get(),
-      db.collection("prescriptions").where("patientId", "==", patientId).get(),
-      db.collection("labReports").where("patientId", "==", patientId).get(),
-      db.collection("admissions").where("patientId", "==", patientId).get(),
-      db.collection("followUps").where("patientId", "==", patientId).get(),
-      db.collection("medicineLogs").where("patientId", "==", patientId).get(),
-      db.collection("healthUpdates").where("patientId", "==", patientId).get(),
-    ]);
+  const [apptSnap, presSnap, reportSnap, admSnap, followSnap, medLogSnap, healthSnap] = await Promise.all([
+    db.collectionGroup("appointments").where("patientId", "==", patientId).get(),
+    db.collectionGroup("prescriptions").where("patientId", "==", patientId).get(),
+    db.collectionGroup("labReports").where("patientId", "==", patientId).get(),
+    db.collectionGroup("admissions").where("patientId", "==", patientId).get(),
+    db.collectionGroup("followUps").where("patientId", "==", patientId).get(),
+    db.collectionGroup("medicineLogs").where("patientId", "==", patientId).get(),
+    db.collection("healthUpdates").where("patientId", "==", patientId).get(),
+  ]);
 
   const entries: TimelineEntry[] = [];
 
@@ -67,28 +58,26 @@ export async function getPatientTimeline(patientId: string): Promise<TimelineEnt
       title: a.type === "emergency" ? "Emergency visit" : "Appointment",
       description: `${a.status}${a.session ? ` · ${a.session}` : ""}`,
     });
-  });
 
-  vitalsSnap.docs.forEach((doc) => {
-    const v = doc.data() as Vitals;
-    entries.push({
-      id: doc.id,
-      type: "vitals",
-      date: toDateString(v.createdAt),
-      title: "Vitals recorded",
-      description: `BP ${v.bloodPressure} · Pulse ${v.pulse} · Temp ${v.temperatureC}°C · BMI ${v.bmi}`,
-    });
-  });
+    if (a.vitals) {
+      entries.push({
+        id: `${doc.id}-vitals`,
+        type: "vitals",
+        date: toDateString(a.vitals.recordedAt),
+        title: "Vitals recorded",
+        description: `BP ${a.vitals.bloodPressure} · Pulse ${a.vitals.pulse} · Temp ${a.vitals.temperatureC}°C · BMI ${a.vitals.bmi}`,
+      });
+    }
 
-  consultSnap.docs.forEach((doc) => {
-    const c = doc.data() as Consultation;
-    entries.push({
-      id: doc.id,
-      type: "consultation",
-      date: toDateString(c.createdAt),
-      title: `Diagnosis: ${c.diagnosis}`,
-      description: c.clinicalNotes,
-    });
+    if (a.consultationSummary) {
+      entries.push({
+        id: `${doc.id}-consultation`,
+        type: "consultation",
+        date: toDateString(a.consultationSummary.completedAt),
+        title: `Diagnosis: ${a.consultationSummary.diagnosis}`,
+        description: a.consultationSummary.clinicalNotes,
+      });
+    }
   });
 
   presSnap.docs.forEach((doc) => {
@@ -115,9 +104,9 @@ export async function getPatientTimeline(patientId: string): Promise<TimelineEnt
 
   admSnap.docs.forEach((doc) => {
     const a = doc.data() as Admission;
-    // Skip requests still awaiting a bed (FR-9.9 add-on) — nothing has
-    // actually happened yet from the patient's perspective until Office
-    // assigns one and admittedAt/bedId are set.
+    // Skip requests still awaiting a bed — nothing has actually happened yet
+    // from the patient's perspective until Office assigns one and
+    // admittedAt/bedId are set.
     if (a.admittedAt && a.bedId) {
       entries.push({
         id: doc.id,
@@ -149,10 +138,9 @@ export async function getPatientTimeline(patientId: string): Promise<TimelineEnt
     });
   });
 
-  // FR-13.1/FR-14.3 — medicine compliance. Only entries where something has
-  // actually happened (patient acted); "pending" doses haven't occurred yet
-  // from the patient's history perspective, same reasoning as the
-  // pendingBedAssignment skip above.
+  // Medicine compliance — only entries where something has actually happened
+  // (patient acted); "pending" doses haven't occurred yet from the patient's
+  // history perspective, same reasoning as the pendingBedAssignment skip above.
   medLogSnap.docs.forEach((doc) => {
     const m = doc.data() as MedicineLog;
     if (m.patientStatus === "pending") return;

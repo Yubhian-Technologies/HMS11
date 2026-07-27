@@ -30,12 +30,12 @@ export default async function DoctorAvailabilityPage() {
 
   const dates = rollingWindowDates();
   const [templates, slots, availabilityRequests] = await Promise.all([
-    listTemplatesForDoctor(doctorId),
-    listSlotsForDoctorInRange(doctorId, dates),
+    listTemplatesForDoctor(hospitalId, branchId, doctorId),
+    listSlotsForDoctorInRange(hospitalId, branchId, doctorId, dates),
     // Isolated: this is a newer collection than templates/slots — if its
     // composite index hasn't been deployed yet, that must not crash the
     // whole page and take the (working) template/slot sections down with it.
-    listRequestsForDoctor(doctorId).catch(() => []),
+    listRequestsForDoctor(hospitalId, branchId, doctorId).catch(() => []),
   ]);
 
   return (
@@ -110,7 +110,13 @@ export default async function DoctorAvailabilityPage() {
                 </p>
                 <div className="flex items-center gap-2">
                   <Badge variant={tpl.status === "active" ? "success" : "destructive"} className="w-20 justify-center">{tpl.status}</Badge>
-                  <TemplateStatusToggle hospitalId={hospitalId} templateId={tpl.id} status={tpl.status} />
+                  <TemplateStatusToggle
+                    hospitalId={hospitalId}
+                    branchId={branchId}
+                    doctorId={doctorId}
+                    templateId={tpl.id}
+                    status={tpl.status}
+                  />
                 </div>
               </div>
             ))
@@ -146,7 +152,12 @@ export default async function DoctorAvailabilityPage() {
                       </span>
                       <Badge variant={slot.status === "approved" ? "default" : "destructive"}>{slot.status}</Badge>
                       {slot.status === "pendingApproval" ? (
-                        <SlotApproveRejectButtons hospitalId={hospitalId} slotId={slot.id} />
+                        <SlotApproveRejectButtons
+                          hospitalId={hospitalId}
+                          branchId={branchId}
+                          doctorId={doctorId}
+                          slotId={slot.id}
+                        />
                       ) : null}
                     </div>
                   ))}

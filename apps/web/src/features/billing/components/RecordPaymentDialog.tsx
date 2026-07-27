@@ -20,10 +20,12 @@ import { recordPayment } from "../services/billing";
 
 export function RecordPaymentDialog({
   hospitalId,
+  branchId,
   invoiceId,
   outstanding,
 }: {
   hospitalId: string;
+  branchId: string;
   invoiceId: string;
   outstanding: number;
 }) {
@@ -39,6 +41,7 @@ export function RecordPaymentDialog({
     try {
       const { status } = await recordPayment({
         hospitalId,
+        branchId,
         invoiceId,
         amount: Number(amount),
         paymentMethod,

@@ -37,7 +37,7 @@ export default async function RecoveryTrackingPage() {
                 className="flex items-center justify-between rounded-md border border-border p-3 text-sm"
               >
                 <span className="text-foreground">{log.scheduledAt.toDate().toISOString().slice(0, 10)}</span>
-                <MedicineLogButtons medicineLogId={log.id} />
+                <MedicineLogButtons hospitalId={log.hospitalId} branchId={log.branchId!} medicineLogId={log.id} />
               </div>
             ))
           )}

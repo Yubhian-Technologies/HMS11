@@ -19,12 +19,14 @@ import { updateWard } from "../services/facilities";
 
 export function EditWardDialog({
   hospitalId,
+  branchId,
   wardId,
   name,
   building,
   floor,
 }: {
   hospitalId: string;
+  branchId: string;
   wardId: string;
   name: string;
   building: string;
@@ -47,7 +49,7 @@ export function EditWardDialog({
     e.preventDefault();
     setSubmitting(true);
     try {
-      await updateWard({ hospitalId, wardId, ...form });
+      await updateWard({ hospitalId, branchId, wardId, ...form });
       toast.success(`Ward "${form.name}" updated.`);
       setOpen(false);
       router.refresh();

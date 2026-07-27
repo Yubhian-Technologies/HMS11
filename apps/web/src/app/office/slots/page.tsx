@@ -19,9 +19,9 @@ export default async function OfficeSlotsPage() {
   const dates = rollingWindowDates();
   const [allDoctors, slots, departments, doctorProfiles] = await Promise.all([
     listStaffByRole(hospitalId, "doctor"),
-    listSlotsForBranchInRange(branchId, dates),
+    listSlotsForBranchInRange(hospitalId, branchId, dates),
     listDepartments(hospitalId),
-    listDoctorProfiles(hospitalId),
+    listDoctorProfiles(hospitalId, branchId),
   ]);
   const doctors = allDoctors.filter((d) => d.branchId === branchId);
   const doctorName = new Map(doctors.map((d) => [d.id, d.name]));
@@ -62,7 +62,7 @@ export default async function OfficeSlotsPage() {
                 Array.from(byDoctor.entries()).map(([doctorId, doctorSlots]) => (
                   <div key={doctorId}>
                     <p className="mb-2 text-sm font-medium text-foreground">
-                      {doctorName.get(doctorId) ?? doctorId}
+                      {doctorName.get(doctorId) ?? "Unknown doctor"}
                     </p>
                     <div className="flex flex-wrap gap-2">
                       {doctorSlots.map((slot) => (
@@ -78,7 +78,13 @@ export default async function OfficeSlotsPage() {
                           <Badge variant={slot.status === "approved" ? "default" : "destructive"}>
                             {slot.status}
                           </Badge>
-                          <BlockUnblockButton hospitalId={hospitalId} slotId={slot.id} status={slot.status} />
+                          <BlockUnblockButton
+                            hospitalId={hospitalId}
+                            branchId={branchId}
+                            doctorId={doctorId}
+                            slotId={slot.id}
+                            status={slot.status}
+                          />
                         </div>
                       ))}
                     </div>

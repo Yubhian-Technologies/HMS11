@@ -1,6 +1,6 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { FieldValue, Timestamp, getFirestore } from "firebase-admin/firestore";
-import { DispenseMedicineRequest, DispenseMedicineResponse } from "@hms/shared";
+import { DispenseMedicineRequest, DispenseMedicineResponse, branchCollection } from "@hms/shared";
 import { requireCallerRole } from "../services/callable-auth";
 import { assertOwnHospital } from "../services/scope-checks";
 import { addDays, todayIso } from "../services/datetime";
@@ -22,9 +22,12 @@ export const dispenseMedicine = onCall(async (request) => {
   }
 
   const db = getFirestore();
-  const prescriptionSnap = await db.collection("prescriptions").doc(input.prescriptionId).get();
+  const prescriptionSnap = await db
+    .collection(branchCollection(input.hospitalId, input.branchId, "prescriptions"))
+    .doc(input.prescriptionId)
+    .get();
   const prescription = prescriptionSnap.data();
-  if (!prescriptionSnap.exists || prescription?.hospitalId !== input.hospitalId) {
+  if (!prescription) {
     throw new HttpsError("not-found", "Prescription not found.");
   }
   const items = (prescription.items ?? []) as { durationDays: number }[];
@@ -33,11 +36,15 @@ export const dispenseMedicine = onCall(async (request) => {
     throw new HttpsError("invalid-argument", "Prescription item not found at that index.");
   }
 
-  const inventoryRef = db.collection("medicineInventory").doc(input.medicineInventoryItemId);
+  const inventoryRef = db
+    .collection(branchCollection(input.hospitalId, input.branchId, "medicineInventory"))
+    .doc(input.medicineInventoryItemId);
 
-  const dispenseRef = db.collection("medicineDispenses").doc();
+  const dispenseRef = db.collection(branchCollection(input.hospitalId, input.branchId, "medicineDispenses")).doc();
   const today = todayIso();
-  const logRefs = Array.from({ length: item.durationDays }, () => db.collection("medicineLogs").doc());
+  const logRefs = Array.from({ length: item.durationDays }, () =>
+    db.collection(branchCollection(input.hospitalId, input.branchId, "medicineLogs")).doc(),
+  );
 
   await db.runTransaction(async (tx) => {
     // Stock must be read *inside* the transaction (not via the plain .get()
@@ -47,7 +54,7 @@ export const dispenseMedicine = onCall(async (request) => {
     // the same stale count and the loser's decrement is silently lost.
     const inventorySnap = await tx.get(inventoryRef);
     const inventoryItem = inventorySnap.data();
-    if (!inventorySnap.exists || inventoryItem?.hospitalId !== input.hospitalId) {
+    if (!inventorySnap.exists) {
       throw new HttpsError("not-found", "Inventory item not found.");
     }
     if ((inventoryItem?.quantityInStock ?? 0) < input.quantityDispensed) {
