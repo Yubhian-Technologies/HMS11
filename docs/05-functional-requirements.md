@@ -35,13 +35,18 @@ Numbered, testable requirements grouped by module. IDs are stable references use
 
 ## FR-4 · Doctor Availability & Slot Management
 - FR-4.1 Doctor (or Admin, delegated) defines a recurring weekly availability
-  template (days, hours, slot duration, breaks).
-- FR-4.2 The system automatically generates slots for the next rolling 3-day window
-  nightly, from active templates and the holiday calendar.
-- FR-4.3 Generated slots start in `pendingApproval` status and are not visible to
-  patients until approved.
-- FR-4.4 Doctor can approve, reject, or manually adjust generated slots.
-- FR-4.5 Office can manually block a slot or add a one-off slot outside the template.
+  template as a count per session (morning/afternoon) — not a picked clock-time
+  range, since a consultation's real duration can't be predicted. Optionally,
+  part of a session's count can be reserved exclusively for Reception's walk-in
+  booking (defaults to 0 — off).
+- FR-4.2 The system automatically generates one session pool per doctor/date/
+  session for the next rolling 3-day window nightly, from active templates and
+  the holiday calendar.
+- FR-4.3 Generated session pools start in `pendingApproval` status and are not
+  visible to patients until approved.
+- FR-4.4 Doctor can approve or reject a generated session pool.
+- FR-4.5 Office can manually block a session pool or add one-off capacity
+  (optionally with its own walk-in reservation) outside the template.
 
 ## FR-5 · Patient Management
 - FR-5.1 Patient registration captures: name, age, gender, DOB, phone, email,

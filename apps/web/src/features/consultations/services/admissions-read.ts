@@ -22,3 +22,13 @@ export async function listPendingBedAssignments(branchId: string): Promise<Admis
     .get();
   return snap.docs.map((doc) => ({ id: doc.id, ...(doc.data() as Admission) }));
 }
+
+/** Doctor's own admissions page — FR-9.5/FR-12.2, assignBedToAdmission also allows the doctor role. */
+export async function listPendingBedAssignmentsForDoctor(doctorId: string): Promise<AdmissionRecord[]> {
+  const snap = await getAdminDb()
+    .collection("admissions")
+    .where("doctorId", "==", doctorId)
+    .where("status", "==", "pendingBedAssignment")
+    .get();
+  return snap.docs.map((doc) => ({ id: doc.id, ...(doc.data() as Admission) }));
+}

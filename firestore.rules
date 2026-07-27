@@ -35,6 +35,17 @@ service cloud.firestore {
       return isHospitalScoped(data) && claim('branchId') == data.branchId;
     }
 
+    // FR-2.6: a disabled hospital's data becomes inaccessible to its own
+    // staff, even before their refresh tokens are revoked (functions/src/
+    // triggers/onHospitalStatusChange.ts handles the login/session side —
+    // this is the belt-and-suspenders read/write-side check). Super Admin is
+    // exempt (needs to see/re-enable disabled hospitals); patients are
+    // exempt (ownership-scoped, and history must stay visible per NFR-7.1 —
+    // only staff *of* the disabled hospital are blocked).
+    function isActiveHospital(hospitalId) {
+      return get(/databases/$(database)/documents/hospitals/$(hospitalId)).data.status == 'active';
+    }
+
     // ---------------------------------------------------------------------
     // Module 1 — Foundation (Auth/RBAC). docs/08-permission-matrix.md
     // "Staff accounts" row.
@@ -105,7 +116,12 @@ service cloud.firestore {
         || (hasRole(['admin']) && isHospitalScoped(resource.data))
         || (hasRole(['office', 'reception', 'doctor']) && claim('hospitalId') == resource.data.hospitalId);
 
-      allow create, update: if hasRole(['admin']) && isHospitalScoped(request.resource.data);
+      allow create: if hasRole(['admin']) && isHospitalScoped(request.resource.data);
+      // Both the existing doc and the proposed doc must belong to the
+      // actor's own hospital — checking only request.resource.data would let
+      // an Admin blind-write (and re-tenant) a department they don't own,
+      // as long as they knew its ID (docs/12-security-rules.md §12.1).
+      allow update: if hasRole(['admin']) && isHospitalScoped(resource.data) && isHospitalScoped(request.resource.data);
       allow delete: if false;
     }
 
@@ -119,7 +135,8 @@ service cloud.firestore {
         || (hasRole(['admin']) && isHospitalScoped(resource.data))
         || (isSignedIn() && request.auth.uid == uid);
 
-      allow create, update: if hasRole(['admin']) && isHospitalScoped(request.resource.data);
+      allow create: if hasRole(['admin']) && isHospitalScoped(request.resource.data);
+      allow update: if hasRole(['admin']) && isHospitalScoped(resource.data) && isHospitalScoped(request.resource.data);
       allow delete: if false;
     }
 
@@ -136,7 +153,8 @@ service cloud.firestore {
       allow read: if isSuperAdmin()
         || (hasRole(['admin']) && isHospitalScoped(resource.data))
         || (hasRole(['office', 'reception', 'doctor']) && isBranchScoped(resource.data));
-      allow create, update: if hasRole(['admin']) && isHospitalScoped(request.resource.data);
+      allow create: if hasRole(['admin']) && isHospitalScoped(request.resource.data);
+      allow update: if hasRole(['admin']) && isHospitalScoped(resource.data) && isHospitalScoped(request.resource.data);
       // Deliberate, narrow exception to NFR-7.1 ("no hard deletes anywhere")
       // — holidays are a non-clinical scheduling record. Every other
       // collection in this file keeps `allow delete: if false`.
@@ -147,7 +165,8 @@ service cloud.firestore {
       allow read: if isSuperAdmin()
         || (hasRole(['admin']) && isHospitalScoped(resource.data))
         || (hasRole(['office', 'reception', 'doctor']) && isBranchScoped(resource.data));
-      allow create, update: if hasRole(['admin']) && isHospitalScoped(request.resource.data);
+      allow create: if hasRole(['admin']) && isHospitalScoped(request.resource.data);
+      allow update: if hasRole(['admin']) && isHospitalScoped(resource.data) && isHospitalScoped(request.resource.data);
       allow delete: if false;
     }
 
@@ -155,7 +174,8 @@ service cloud.firestore {
       allow read: if isSuperAdmin()
         || (hasRole(['admin']) && isHospitalScoped(resource.data))
         || (hasRole(['office', 'reception', 'doctor']) && isBranchScoped(resource.data));
-      allow create, update: if hasRole(['admin']) && isHospitalScoped(request.resource.data);
+      allow create: if hasRole(['admin']) && isHospitalScoped(request.resource.data);
+      allow update: if hasRole(['admin']) && isHospitalScoped(resource.data) && isHospitalScoped(request.resource.data);
       allow delete: if false;
     }
 
@@ -163,13 +183,13 @@ service cloud.firestore {
       allow read: if isSuperAdmin()
         || (hasRole(['admin']) && isHospitalScoped(resource.data))
         || (hasRole(['office', 'reception', 'doctor']) && isBranchScoped(resource.data));
-      // Admin creates the catalog end to end (Module 4). Office additionally
-      // manages day-to-day bed status (setBedStatus) and drives
-      // available -> occupied when assigning a bed to an admission
-      // (assignBedToAdmission) — the admin-creates/office-manages split.
+      // Admin creates the catalog (Module 4) and stops there — no admin
+      // update path on beds. Office manages day-to-day bed condition
+      // (setBedStatus); Office and Doctor both drive available -> occupied
+      // when assigning a bed to an admission (assignBedToAdmission is
+      // callable by either role — see its doc comment).
       allow create: if hasRole(['admin']) && isHospitalScoped(request.resource.data);
-      allow update: if (hasRole(['admin']) && isHospitalScoped(request.resource.data))
-        || (hasRole(['office']) && isBranchScoped(request.resource.data));
+      allow update: if hasRole(['office', 'doctor']) && isBranchScoped(resource.data) && isBranchScoped(request.resource.data);
       allow delete: if false;
     }
 
@@ -178,7 +198,8 @@ service cloud.firestore {
         || (hasRole(['admin']) && isHospitalScoped(resource.data))
         || (hasRole(['doctor', 'lab']) && isBranchScoped(resource.data))
         || hasRole(['patient']);
-      allow create, update: if hasRole(['admin']) && isHospitalScoped(request.resource.data);
+      allow create: if hasRole(['admin']) && isHospitalScoped(request.resource.data);
+      allow update: if hasRole(['admin']) && isHospitalScoped(resource.data) && isHospitalScoped(request.resource.data);
       allow delete: if false;
     }
 
@@ -186,8 +207,10 @@ service cloud.firestore {
       allow read: if isSuperAdmin()
         || (hasRole(['admin']) && isHospitalScoped(resource.data))
         || (hasRole(['pharmacy']) && isBranchScoped(resource.data));
-      allow create, update: if (hasRole(['admin']) && isHospitalScoped(request.resource.data))
+      allow create: if (hasRole(['admin']) && isHospitalScoped(request.resource.data))
         || (hasRole(['pharmacy']) && isBranchScoped(request.resource.data));
+      allow update: if (hasRole(['admin']) && isHospitalScoped(resource.data) && isHospitalScoped(request.resource.data))
+        || (hasRole(['pharmacy']) && isBranchScoped(resource.data) && isBranchScoped(request.resource.data));
       allow delete: if false;
     }
 
@@ -202,9 +225,13 @@ service cloud.firestore {
         || (hasRole(['admin']) && isHospitalScoped(resource.data))
         || (hasRole(['office', 'reception']) && isBranchScoped(resource.data))
         || (hasRole(['doctor']) && resource.data.doctorId == request.auth.uid);
-      allow create, update: if (hasRole(['admin']) && isHospitalScoped(request.resource.data))
+      allow create: if (hasRole(['admin']) && isHospitalScoped(request.resource.data))
         || (hasRole(['doctor']) && request.resource.data.doctorId == request.auth.uid
             && isHospitalScoped(request.resource.data));
+      allow update: if (hasRole(['admin']) && isHospitalScoped(resource.data) && isHospitalScoped(request.resource.data))
+        || (hasRole(['doctor']) && resource.data.doctorId == request.auth.uid
+            && request.resource.data.doctorId == request.auth.uid
+            && isHospitalScoped(resource.data) && isHospitalScoped(request.resource.data));
       allow delete: if false;
     }
 
@@ -302,9 +329,14 @@ service cloud.firestore {
     // backstop, not the primary access-control mechanism for that view.
     // ---------------------------------------------------------------------
     match /vitals/{vitalsId} {
+      // This is the one collection read live from the client SDK (the
+      // doctor queue's real-time vitals listener — FR-8.3), so it's also the
+      // one place isActiveHospital() is checked directly in rules today: a
+      // disabled hospital's doctor/reception session (not yet expired/
+      // revoked) shouldn't keep streaming live clinical data.
       allow read: if isSuperAdmin()
         || (hasRole(['admin']) && isHospitalScoped(resource.data))
-        || (hasRole(['reception', 'doctor']) && isBranchScoped(resource.data))
+        || (hasRole(['reception', 'doctor']) && isBranchScoped(resource.data) && isActiveHospital(resource.data.hospitalId))
         || (hasRole(['patient']) && resource.data.patientId == request.auth.uid);
 
       allow create: if hasRole(['reception']) && isBranchScoped(request.resource.data);
@@ -384,7 +416,8 @@ service cloud.firestore {
         || (hasRole(['admin']) && isHospitalScoped(resource.data))
         || (hasRole(['office', 'reception', 'doctor']) && isBranchScoped(resource.data))
         || (hasRole(['patient']) && resource.data.patientId == request.auth.uid);
-      allow create, update: if hasRole(['doctor']) && isBranchScoped(request.resource.data);
+      allow create: if hasRole(['doctor']) && isBranchScoped(request.resource.data);
+      allow update: if hasRole(['doctor']) && isBranchScoped(resource.data) && isBranchScoped(request.resource.data);
       allow delete: if false;
     }
 
@@ -432,7 +465,8 @@ service cloud.firestore {
         || (hasRole(['admin']) && isHospitalScoped(resource.data))
         || (hasRole(['pharmacy']) && isBranchScoped(resource.data))
         || (hasRole(['patient']) && resource.data.patientId == request.auth.uid);
-      allow create, update: if hasRole(['pharmacy']) && isBranchScoped(request.resource.data);
+      allow create: if hasRole(['pharmacy']) && isBranchScoped(request.resource.data);
+      allow update: if hasRole(['pharmacy']) && isBranchScoped(resource.data) && isBranchScoped(request.resource.data);
       allow delete: if false;
     }
 

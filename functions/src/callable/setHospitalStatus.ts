@@ -7,12 +7,14 @@ import { requireCallerRole } from "../services/callable-auth";
 /**
  * FR-2.1 / FR-2.6: disabling a hospital blocks login for all its staff and
  * hides it from patient visibility, without deleting any records (no hard
- * delete — NFR-7.1). Login blocking itself happens naturally: staff/admin
- * custom claims still carry the (now-disabled) hospitalId, but every
- * protected read in the app is additionally gated by the hospital's own
- * `status` field wherever hospital-scoped data is displayed — modules that
- * read hospital-scoped data check `status === "active"` themselves rather
- * than duplicating that check here.
+ * delete — NFR-7.1). Login blocking is handled by
+ * functions/src/triggers/onHospitalStatusChange.ts, which fires on this
+ * write and revokes every staff member's refresh tokens (mirrors
+ * onUserStatusChange's per-user FR-1.4 mechanism) — apps/web's requireRole()
+ * (verifySessionCookie with checkRevoked=true) then rejects on their very
+ * next request. Patient visibility is handled at the read layer wherever
+ * hospital-scoped data is patient-facing (e.g. patient/book/page.tsx filters
+ * `status === "active"`), since patients aren't hospital-scoped by claim.
  */
 export const setHospitalStatus = onCall(async (request) => {
   const caller = requireCallerRole(request, ["super_admin"]);

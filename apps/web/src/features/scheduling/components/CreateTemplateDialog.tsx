@@ -43,7 +43,8 @@ export function CreateTemplateDialog({
   const [weekday, setWeekday] = useState<Weekday>("monday");
   const [morningSlots, setMorningSlots] = useState("8");
   const [afternoonSlots, setAfternoonSlots] = useState("8");
-  const [slotDurationMinutes, setSlotDurationMinutes] = useState("15");
+  const [morningWalkInReserved, setMorningWalkInReserved] = useState("0");
+  const [afternoonWalkInReserved, setAfternoonWalkInReserved] = useState("0");
   const [submitting, setSubmitting] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -57,8 +58,8 @@ export function CreateTemplateDialog({
         weekday,
         morningSlots: Number(morningSlots),
         afternoonSlots: Number(afternoonSlots),
-        slotDurationMinutes: Number(slotDurationMinutes),
-        breaks: [],
+        morningWalkInReserved: Number(morningWalkInReserved),
+        afternoonWalkInReserved: Number(afternoonWalkInReserved),
       });
       toast.success(`Template added for ${WEEKDAY_LABEL[weekday]}.`);
       setOpen(false);
@@ -85,7 +86,7 @@ export function CreateTemplateDialog({
           <div className="grid gap-4 py-4">
             <div className="grid gap-1.5">
               <Label htmlFor="tpl-weekday">Day of week</Label>
-              <Select value={weekday} onValueChange={(v) => v && setWeekday(v as Weekday)}>
+              <Select items={WEEKDAY_LABEL} value={weekday} onValueChange={(v) => v && setWeekday(v as Weekday)}>
                 <SelectTrigger id="tpl-weekday" className="w-full">
                   <SelectValue />
                 </SelectTrigger>
@@ -132,17 +133,27 @@ export function CreateTemplateDialog({
                 />
               </div>
             </div>
-            <div className="grid gap-1.5">
-              <Label htmlFor="tpl-duration">Slot duration (minutes)</Label>
-              <Input
-                id="tpl-duration"
-                type="number"
-                min="5"
-                step="5"
-                required
-                value={slotDurationMinutes}
-                onChange={(e) => setSlotDurationMinutes(e.target.value)}
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-1.5">
+                <Label htmlFor="tpl-morning-walkin">Reserve for walk-ins (morning)</Label>
+                <Input
+                  id="tpl-morning-walkin"
+                  type="number"
+                  min="0"
+                  value={morningWalkInReserved}
+                  onChange={(e) => setMorningWalkInReserved(e.target.value)}
+                />
+              </div>
+              <div className="grid gap-1.5">
+                <Label htmlFor="tpl-afternoon-walkin">Reserve for walk-ins (afternoon)</Label>
+                <Input
+                  id="tpl-afternoon-walkin"
+                  type="number"
+                  min="0"
+                  value={afternoonWalkInReserved}
+                  onChange={(e) => setAfternoonWalkInReserved(e.target.value)}
+                />
+              </div>
             </div>
           </div>
           <DialogFooter>

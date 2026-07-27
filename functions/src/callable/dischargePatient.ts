@@ -16,19 +16,23 @@ export const dischargePatient = onCall(async (request) => {
 
   const db = getFirestore();
   const admissionRef = db.collection("admissions").doc(input.admissionId);
-  const admissionSnap = await admissionRef.get();
-  const admission = admissionSnap.data();
-  if (!admissionSnap.exists || admission?.hospitalId !== input.hospitalId) {
-    throw new HttpsError("not-found", "Admission not found.");
-  }
-  if (admission?.doctorId !== caller.uid) {
-    throw new HttpsError("permission-denied", "You can only discharge your own patients.");
-  }
-  if (admission?.status !== "admitted") {
-    throw new HttpsError("failed-precondition", "This patient is already discharged.");
-  }
 
   await db.runTransaction(async (tx) => {
+    // Read inside the transaction so a concurrent discharge/reassignment of
+    // the same admission is detected and retried rather than both callers
+    // committing against a stale "admitted" status.
+    const admissionSnap = await tx.get(admissionRef);
+    const admission = admissionSnap.data();
+    if (!admissionSnap.exists || admission?.hospitalId !== input.hospitalId) {
+      throw new HttpsError("not-found", "Admission not found.");
+    }
+    if (admission?.doctorId !== caller.uid) {
+      throw new HttpsError("permission-denied", "You can only discharge your own patients.");
+    }
+    if (admission?.status !== "admitted") {
+      throw new HttpsError("failed-precondition", "This patient is already discharged.");
+    }
+
     const now = FieldValue.serverTimestamp();
 
     tx.update(admissionRef, {

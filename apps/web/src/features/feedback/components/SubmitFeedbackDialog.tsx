@@ -52,7 +52,11 @@ export function SubmitFeedbackDialog({ appointmentId }: { appointmentId: string 
           <div className="grid gap-4 py-4">
             <div className="grid gap-1.5">
               <Label htmlFor="fb-rating">Rating</Label>
-              <Select value={rating} onValueChange={(v) => v && setRating(v)}>
+              <Select
+                items={{ "1": "1 / 5", "2": "2 / 5", "3": "3 / 5", "4": "4 / 5", "5": "5 / 5" }}
+                value={rating}
+                onValueChange={(v) => v && setRating(v)}
+              >
                 <SelectTrigger id="fb-rating" className="w-full">
                   <SelectValue />
                 </SelectTrigger>

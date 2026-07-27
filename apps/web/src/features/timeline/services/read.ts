@@ -8,6 +8,8 @@ import type {
   LabReport,
   Admission,
   FollowUp,
+  MedicineLog,
+  HealthUpdate,
 } from "@hms/shared";
 
 export interface TimelineEntry {
@@ -20,7 +22,9 @@ export interface TimelineEntry {
     | "labReport"
     | "admission"
     | "discharge"
-    | "followUp";
+    | "followUp"
+    | "medicineLog"
+    | "healthUpdate";
   date: string;
   title: string;
   description: string;
@@ -39,15 +43,18 @@ function toDateString(ts: { toDate(): Date }): string {
 export async function getPatientTimeline(patientId: string): Promise<TimelineEntry[]> {
   const db = getAdminDb();
 
-  const [apptSnap, vitalsSnap, consultSnap, presSnap, reportSnap, admSnap, followSnap] = await Promise.all([
-    db.collection("appointments").where("patientId", "==", patientId).get(),
-    db.collection("vitals").where("patientId", "==", patientId).get(),
-    db.collection("consultations").where("patientId", "==", patientId).get(),
-    db.collection("prescriptions").where("patientId", "==", patientId).get(),
-    db.collection("labReports").where("patientId", "==", patientId).get(),
-    db.collection("admissions").where("patientId", "==", patientId).get(),
-    db.collection("followUps").where("patientId", "==", patientId).get(),
-  ]);
+  const [apptSnap, vitalsSnap, consultSnap, presSnap, reportSnap, admSnap, followSnap, medLogSnap, healthSnap] =
+    await Promise.all([
+      db.collection("appointments").where("patientId", "==", patientId).get(),
+      db.collection("vitals").where("patientId", "==", patientId).get(),
+      db.collection("consultations").where("patientId", "==", patientId).get(),
+      db.collection("prescriptions").where("patientId", "==", patientId).get(),
+      db.collection("labReports").where("patientId", "==", patientId).get(),
+      db.collection("admissions").where("patientId", "==", patientId).get(),
+      db.collection("followUps").where("patientId", "==", patientId).get(),
+      db.collection("medicineLogs").where("patientId", "==", patientId).get(),
+      db.collection("healthUpdates").where("patientId", "==", patientId).get(),
+    ]);
 
   const entries: TimelineEntry[] = [];
 
@@ -58,7 +65,7 @@ export async function getPatientTimeline(patientId: string): Promise<TimelineEnt
       type: "appointment",
       date: a.date,
       title: a.type === "emergency" ? "Emergency visit" : "Appointment",
-      description: `${a.status}${a.startTime ? ` · ${a.startTime}` : ""}`,
+      description: `${a.status}${a.session ? ` · ${a.session}` : ""}`,
     });
   });
 
@@ -139,6 +146,38 @@ export async function getPatientTimeline(patientId: string): Promise<TimelineEnt
       date: f.scheduledDate,
       title: "Follow-up scheduled",
       description: f.resultingAppointmentId ? "Booked" : "Not yet booked",
+    });
+  });
+
+  // FR-13.1/FR-14.3 — medicine compliance. Only entries where something has
+  // actually happened (patient acted); "pending" doses haven't occurred yet
+  // from the patient's history perspective, same reasoning as the
+  // pendingBedAssignment skip above.
+  medLogSnap.docs.forEach((doc) => {
+    const m = doc.data() as MedicineLog;
+    if (m.patientStatus === "pending") return;
+    entries.push({
+      id: doc.id,
+      type: "medicineLog",
+      date: toDateString(m.updatedAt),
+      title: `Dose ${m.patientStatus}`,
+      description: toDateString(m.scheduledAt) === toDateString(m.updatedAt) ? "" : `Scheduled ${toDateString(m.scheduledAt)}`,
+    });
+  });
+
+  healthSnap.docs.forEach((doc) => {
+    const h = doc.data() as HealthUpdate;
+    const parts = [`Condition: ${h.condition}`, `Pain ${h.painLevel}/10`];
+    if (h.bloodPressure) parts.push(`BP ${h.bloodPressure}`);
+    if (h.sugarMgDl != null) parts.push(`Sugar ${h.sugarMgDl}`);
+    if (h.temperatureC != null) parts.push(`Temp ${h.temperatureC}°C`);
+    if (h.weightKg != null) parts.push(`Weight ${h.weightKg}kg`);
+    entries.push({
+      id: doc.id,
+      type: "healthUpdate",
+      date: toDateString(h.createdAt),
+      title: "Recovery update",
+      description: parts.join(" · "),
     });
   });
 

@@ -12,6 +12,8 @@ import { listStaffByRole, listDoctorProfiles } from "@/features/staff/services/r
 import { AppointmentActionButtons } from "@/features/appointments/components/AppointmentActionButtons";
 import { CreateEmergencyDialog } from "@/features/appointments/components/CreateEmergencyDialog";
 
+const SESSION_LABEL: Record<string, string> = { morning: "Morning", afternoon: "Afternoon" };
+
 export default async function OfficeAppointmentsPage({
   searchParams,
 }: {
@@ -47,13 +49,14 @@ export default async function OfficeAppointmentsPage({
             {appt.patientName} {appt.type === "emergency" ? <Badge variant="destructive">EMERGENCY</Badge> : null}
           </p>
           <p className="text-muted-foreground">
-            {doctorProfilesById.get(appt.doctorId) ?? "Unknown doctor"} · {appt.date} · {appt.startTime ?? "—"}
+            {doctorProfilesById.get(appt.doctorId) ?? "Unknown doctor"} · {appt.date} ·{" "}
+            {appt.session ? SESSION_LABEL[appt.session] : "—"}
           </p>
         </div>
         <div className="flex items-center gap-2">
           <Badge variant={appt.status === "approved" ? "default" : "destructive"}>{appt.status}</Badge>
           <AppointmentActionButtons hospitalId={hospitalId} appointmentId={appt.id} status={appt.status} />
-          {appt.status === "approved" && appt.slotId ? (
+          {appt.status === "approved" && appt.session ? (
             <Button
               size="sm"
               variant="outline"

@@ -78,7 +78,11 @@ export function RecordPaymentDialog({
             </div>
             <div className="grid gap-1.5">
               <Label htmlFor="pay-method">Method</Label>
-              <Select value={paymentMethod} onValueChange={(v) => v && setPaymentMethod(v as typeof paymentMethod)}>
+              <Select
+                items={{ cash: "Cash", card: "Card", upi: "UPI" }}
+                value={paymentMethod}
+                onValueChange={(v) => v && setPaymentMethod(v as typeof paymentMethod)}
+              >
                 <SelectTrigger id="pay-method" className="w-full">
                   <SelectValue />
                 </SelectTrigger>

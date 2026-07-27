@@ -4,12 +4,17 @@ import { BookAppointmentRequest, BookAppointmentResponse } from "@hms/shared";
 import { requireCallerRole } from "../services/callable-auth";
 import { sendNotification } from "../notifications/sendNotification";
 
+const SESSION_LABEL: Record<string, string> = { morning: "morning", afternoon: "afternoon" };
+
 /**
- * FR-6.1 / FR-6.2. Patient (self) or Reception (on behalf). Booking a slot
- * immediately marks it "booked" (removing it from availability) while the
- * appointment itself starts "pending" — Office still has to approve the
- * booking (FR-6.3), a separate gate from the doctor having approved the
- * slot's existence (FR-4.4).
+ * FR-6.1 / FR-6.2. Patient (self) or Reception (on behalf). Booking draws
+ * from the (doctorId, date, session) pool's counter rather than claiming a
+ * specific pre-existing document — Patient can only draw from the
+ * non-reserved (online) portion; Reception draws from the walk-in-reserved
+ * portion first, falling back to the online portion if the reserved pool is
+ * exhausted (FR-4.5 add-on). The appointment itself starts "pending" —
+ * Office still has to approve the booking (FR-6.3), a separate gate from
+ * the doctor having approved the session pool's existence (FR-4.4).
  */
 export const bookAppointment = onCall(async (request) => {
   const caller = requireCallerRole(request, ["patient", "reception"]);
@@ -30,37 +35,59 @@ export const bookAppointment = onCall(async (request) => {
     throw new HttpsError("not-found", "Patient not found.");
   }
 
-  const slotRef = db.collection("doctorSlots").doc(input.slotId);
-  const slotSnap = await slotRef.get();
-  const slot = slotSnap.data();
-  if (
-    !slotSnap.exists ||
-    slot?.hospitalId !== input.hospitalId ||
-    slot?.branchId !== input.branchId
-  ) {
-    throw new HttpsError("not-found", "Slot not found.");
-  }
-  if (slot?.status !== "approved") {
-    throw new HttpsError("failed-precondition", "This slot is no longer available.");
-  }
-
+  const poolRef = db.collection("doctorSlots").doc(`${input.doctorId}_${input.date}_${input.session}`);
   const appointmentRef = db.collection("appointments").doc();
 
   await db.runTransaction(async (tx) => {
+    const poolSnap = await tx.get(poolRef);
+    const pool = poolSnap.data();
+    if (!poolSnap.exists || pool?.hospitalId !== input.hospitalId || pool?.branchId !== input.branchId) {
+      throw new HttpsError("not-found", "This session is not open for booking.");
+    }
+    if (pool?.status !== "approved") {
+      throw new HttpsError("failed-precondition", "This session is no longer available.");
+    }
+
+    const onlineRemaining = Math.max(
+      0,
+      (pool.totalCount as number) - (pool.walkInReserved as number) - (pool.onlineBookedCount as number),
+    );
+    const walkInRemaining = Math.max(0, (pool.walkInReserved as number) - (pool.walkInBookedCount as number));
+
+    let bucket: "online" | "walkin";
+    if (caller.role === "patient") {
+      if (onlineRemaining <= 0) {
+        throw new HttpsError("failed-precondition", "This session is fully booked.");
+      }
+      bucket = "online";
+    } else {
+      if (walkInRemaining > 0) {
+        bucket = "walkin";
+      } else if (onlineRemaining > 0) {
+        bucket = "online";
+      } else {
+        throw new HttpsError("failed-precondition", "This session is fully booked.");
+      }
+    }
+
     const now = FieldValue.serverTimestamp();
 
-    tx.update(slotRef, { status: "booked", updatedAt: now });
+    tx.update(poolRef, {
+      [bucket === "online" ? "onlineBookedCount" : "walkInBookedCount"]: FieldValue.increment(1),
+      updatedAt: now,
+    });
 
     tx.set(appointmentRef, {
       patientId: input.patientId,
       patientName: patientSnap.data()?.name ?? "",
-      doctorId: slot?.doctorId,
-      slotId: input.slotId,
+      doctorId: input.doctorId,
       departmentId: input.departmentId,
       type: "normal",
       priority: 0,
-      date: slot?.date,
-      startTime: slot?.startTime,
+      date: input.date,
+      session: input.session,
+      bookedVia: bucket,
+      startTime: null,
       token: null,
       status: "pending",
       waitingListPosition: null,
@@ -71,16 +98,16 @@ export const bookAppointment = onCall(async (request) => {
       updatedAt: now,
     });
 
-    const slotAuditRef = db.collection("auditLogs").doc();
-    tx.set(slotAuditRef, {
+    const poolAuditRef = db.collection("auditLogs").doc();
+    tx.set(poolAuditRef, {
       hospitalId: input.hospitalId,
       actorId: caller.uid,
       actorRole: caller.role,
-      action: "statusChange",
+      action: "update",
       entityType: "doctorSlots",
-      entityId: input.slotId,
-      before: { status: "approved" },
-      after: { status: "booked" },
+      entityId: poolRef.id,
+      before: null,
+      after: { bucket },
       createdAt: now,
     });
 
@@ -93,16 +120,18 @@ export const bookAppointment = onCall(async (request) => {
       entityType: "appointments",
       entityId: appointmentRef.id,
       before: null,
-      after: { patientId: input.patientId, doctorId: slot?.doctorId, status: "pending" },
+      after: { patientId: input.patientId, doctorId: input.doctorId, status: "pending" },
       createdAt: now,
     });
+
+    return bucket;
   });
 
   await sendNotification({
     userId: input.patientId,
     type: "appointmentConfirmation",
     title: "Appointment requested",
-    body: `Your appointment on ${slot?.date} at ${slot?.startTime} is pending Office approval.`,
+    body: `Your ${SESSION_LABEL[input.session]} appointment on ${input.date} is pending Office approval.`,
     hospitalId: input.hospitalId,
     relatedEntityId: appointmentRef.id,
   });

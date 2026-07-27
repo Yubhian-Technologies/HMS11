@@ -9,7 +9,9 @@ import { bookAppointment } from "../services/appointments";
 export function BookSlotButton({
   hospitalId,
   branchId,
-  slotId,
+  doctorId,
+  date,
+  session,
   patientId,
   departmentId,
   label,
@@ -17,7 +19,9 @@ export function BookSlotButton({
 }: {
   hospitalId: string;
   branchId: string;
-  slotId: string;
+  doctorId: string;
+  date: string;
+  session: "morning" | "afternoon";
   patientId: string;
   departmentId: string;
   label: string;
@@ -29,12 +33,12 @@ export function BookSlotButton({
   function handleClick() {
     startTransition(async () => {
       try {
-        await bookAppointment({ hospitalId, branchId, slotId, patientId, departmentId });
+        await bookAppointment({ hospitalId, branchId, doctorId, date, session, patientId, departmentId });
         toast.success("Appointment booked — pending Office approval.");
         router.push(redirectTo);
         router.refresh();
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Failed to book this slot.");
+        toast.error(err instanceof Error ? err.message : "Failed to book this session.");
       }
     });
   }

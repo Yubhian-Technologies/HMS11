@@ -155,25 +155,34 @@ interface Bed extends BaseDoc {
 
 ## Scheduling
 
+A doctor's availability is a count per session (morning/afternoon), not a
+picked clock-time range — a consultation's real duration can't be predicted,
+so nothing pretends to. Booking draws from a session's pool as an atomic
+counter increment; there is no per-patient time.
+
 ```ts
 // doctorAvailabilityTemplates/{id}
 interface DoctorAvailabilityTemplate extends BaseDoc {
   doctorId: string;
   weekday: Weekday;
-  startTime: string;                // "09:00"
-  endTime: string;                  // "13:00"
-  slotDurationMinutes: number;
-  breaks: { start: string; end: string }[];
+  morningSlots: number;
+  afternoonSlots: number;
+  morningWalkInReserved: number;    // subset of morningSlots held back for Reception's walk-in booking (0 = off)
+  afternoonWalkInReserved: number;
   status: "active" | "disabled";
 }
 
-// doctorSlots/{id}
+// doctorSlots/{doctorId}_{date}_{session} — one pool per doctor/date/session,
+// not one doc per bookable unit.
 interface DoctorSlot extends BaseDoc {
   doctorId: string;
   date: string;                     // ISO date
-  startTime: string;
-  endTime: string;
-  status: "pendingApproval" | "approved" | "rejected" | "booked" | "blocked" | "completed";
+  session: "morning" | "afternoon";
+  totalCount: number;
+  walkInReserved: number;
+  onlineBookedCount: number;
+  walkInBookedCount: number;
+  status: "pendingApproval" | "approved" | "rejected" | "blocked";
   generatedByTemplateId: string | null;   // null if Office manually added it
 }
 ```
@@ -186,12 +195,13 @@ interface Appointment extends BaseDoc {
   patientId: string;
   patientName: string;              // denormalized for list views
   doctorId: string;
-  slotId: string | null;            // null for emergency (no slot)
   departmentId: string;
   type: "normal" | "emergency";
   priority: number;                 // emergency queue ordering; 0 for normal
   date: string;
-  startTime: string;
+  session: "morning" | "afternoon" | null;  // null for emergency / not-yet-promoted waiting-list entries
+  bookedVia: "online" | "walkin" | null;    // which doctorSlots counter bucket this booking drew from
+  startTime: string | null;         // no per-slot clock time exists; only ever set for emergency (the actual check-in time)
   token: string | null;             // assigned at check-in
   status: "pending" | "approved" | "rejected" | "rescheduled" | "checkedIn" | "completed" | "cancelled";
   waitingListPosition: number | null;

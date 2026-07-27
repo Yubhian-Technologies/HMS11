@@ -14,8 +14,12 @@ export async function listTemplatesForDoctor(doctorId: string): Promise<Template
   return snap.docs.map((doc) => ({ id: doc.id, ...(doc.data() as DoctorAvailabilityTemplate) }));
 }
 
+const SESSION_ORDER: Record<string, number> = { morning: 0, afternoon: 1 };
+
 function sortSlots(slots: SlotRecord[]): SlotRecord[] {
-  return slots.sort((a, b) => (a.date === b.date ? a.startTime.localeCompare(b.startTime) : a.date.localeCompare(b.date)));
+  return slots.sort((a, b) =>
+    a.date === b.date ? SESSION_ORDER[a.session]! - SESSION_ORDER[b.session]! : a.date.localeCompare(b.date),
+  );
 }
 
 export async function listSlotsForDoctorInRange(doctorId: string, dates: string[]): Promise<SlotRecord[]> {

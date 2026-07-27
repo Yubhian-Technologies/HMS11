@@ -30,10 +30,11 @@ drift from it. Representative contracts:
 ```ts
 // packages/shared/src/validation/appointments.ts
 export const BookAppointmentRequest = z.object({
-  slotId: z.string(),
+  doctorId: z.string(),
+  date: z.string(),
+  session: z.enum(["morning", "afternoon"]),
   patientId: z.string(),          // self, or specified by reception on behalf of a walk-in
   departmentId: z.string(),
-  chiefComplaint: z.string().optional(),
 });
 export const BookAppointmentResponse = z.object({
   appointmentId: z.string(),

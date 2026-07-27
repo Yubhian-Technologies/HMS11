@@ -18,6 +18,8 @@ type SearchParams = {
   doctorId?: string;
 };
 
+const SESSION_LABEL: Record<string, string> = { morning: "Morning", afternoon: "Afternoon" };
+
 export default async function BookAppointmentPage({
   searchParams,
 }: {
@@ -97,38 +99,46 @@ export default async function BookAppointmentPage({
               <CardTitle className="text-base">{formatDateLabel(date, i)}</CardTitle>
             </CardHeader>
             <CardContent>
-              {daySlots.length === 0 ? (
-                <div className="flex items-center justify-between">
-                  <p className="text-sm text-muted-foreground">No open slots.</p>
-                  <JoinWaitingListButton
-                    hospitalId={hospitalId}
-                    branchId={branchId}
-                    patientId={patientId}
-                    doctorId={doctorId}
-                    departmentId={departmentId}
-                    date={date}
-                  />
-                </div>
-              ) : (
-                <div className="flex flex-wrap gap-2">
-                  {daySlots.map((slot) => (
-                    <div key={slot.id} className="flex items-center gap-2 rounded-md border border-border p-2">
-                      <Badge variant="default">
-                        {slot.startTime}–{slot.endTime}
-                      </Badge>
-                      <BookSlotButton
-                        hospitalId={hospitalId}
-                        branchId={branchId}
-                        slotId={slot.id}
-                        patientId={patientId}
-                        departmentId={departmentId}
-                        label="Book"
-                        redirectTo="/patient"
-                      />
-                    </div>
-                  ))}
-                </div>
-              )}
+              {(() => {
+                const bookable = daySlots.filter(
+                  (s) => s.status === "approved" && s.totalCount - s.walkInReserved - s.onlineBookedCount > 0,
+                );
+                return bookable.length === 0 ? (
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm text-muted-foreground">No open sessions.</p>
+                    <JoinWaitingListButton
+                      hospitalId={hospitalId}
+                      branchId={branchId}
+                      patientId={patientId}
+                      doctorId={doctorId}
+                      departmentId={departmentId}
+                      date={date}
+                    />
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {bookable.map((slot) => (
+                      <div key={slot.id} className="flex items-center gap-2 rounded-md border border-border p-2">
+                        <Badge variant="default">
+                          {SESSION_LABEL[slot.session]} —{" "}
+                          {slot.totalCount - slot.walkInReserved - slot.onlineBookedCount} spots left
+                        </Badge>
+                        <BookSlotButton
+                          hospitalId={hospitalId}
+                          branchId={branchId}
+                          doctorId={doctorId}
+                          date={slot.date}
+                          session={slot.session}
+                          patientId={patientId}
+                          departmentId={departmentId}
+                          label="Book"
+                          redirectTo="/patient"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
             </CardContent>
           </Card>
         );

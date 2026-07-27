@@ -6,6 +6,7 @@ if (!getApps().length) {
 
 export { onUserCreateSetClaims } from "./triggers/onUserCreateSetClaims";
 export { onUserStatusChange } from "./triggers/onUserStatusChange";
+export { onHospitalStatusChange } from "./triggers/onHospitalStatusChange";
 
 // Module 2 — Hospital & Branch Management (docs/13-cloud-functions.md §13.3).
 export { createHospital } from "./callable/createHospital";
@@ -34,6 +35,7 @@ export { createWard } from "./callable/createWard";
 export { updateWard } from "./callable/updateWard";
 export { setWardStatus } from "./callable/setWardStatus";
 export { createRoom } from "./callable/createRoom";
+export { updateRoom } from "./callable/updateRoom";
 export { setRoomStatus } from "./callable/setRoomStatus";
 export { createBed } from "./callable/createBed";
 export { setBedStatus } from "./callable/setBedStatus";

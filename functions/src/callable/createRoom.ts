@@ -22,6 +22,7 @@ export const createRoom = onCall(async (request) => {
     data: {
       wardId: input.wardId,
       roomNumber: input.roomNumber,
+      dailyRate: input.dailyRate,
       hospitalId: input.hospitalId,
       branchId: input.branchId,
       status: "active",

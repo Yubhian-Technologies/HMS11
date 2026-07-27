@@ -21,6 +21,8 @@ const WEEKDAY_LABEL: Record<string, string> = {
   sunday: "Sunday",
 };
 
+const SESSION_LABEL: Record<string, string> = { morning: "Morning", afternoon: "Afternoon" };
+
 export default async function DoctorAvailabilityPage() {
   const session = await getSession();
   if (!session?.hospitalId || !session.branchId) redirect("/login");
@@ -101,8 +103,10 @@ export default async function DoctorAvailabilityPage() {
                 className="flex items-center justify-between rounded-md border border-border p-3 text-sm"
               >
                 <p className="font-medium text-foreground">
-                  {WEEKDAY_LABEL[tpl.weekday]} · {tpl.morningSlots} morning / {tpl.afternoonSlots} afternoon ·{" "}
-                  {tpl.slotDurationMinutes}min slots
+                  {WEEKDAY_LABEL[tpl.weekday]} · {tpl.morningSlots} morning
+                  {tpl.morningWalkInReserved > 0 ? ` (${tpl.morningWalkInReserved} for walk-ins)` : ""} /{" "}
+                  {tpl.afternoonSlots} afternoon
+                  {tpl.afternoonWalkInReserved > 0 ? ` (${tpl.afternoonWalkInReserved} for walk-ins)` : ""}
                 </p>
                 <div className="flex items-center gap-2">
                   <Badge variant={tpl.status === "active" ? "success" : "destructive"} className="w-20 justify-center">{tpl.status}</Badge>
@@ -136,15 +140,11 @@ export default async function DoctorAvailabilityPage() {
                       className="flex items-center gap-2 rounded-md border border-border p-2 text-sm"
                     >
                       <span className="text-foreground">
-                        {slot.startTime}–{slot.endTime}
+                        {SESSION_LABEL[slot.session]} · {slot.onlineBookedCount + slot.walkInBookedCount}/
+                        {slot.totalCount} booked
+                        {slot.walkInReserved > 0 ? ` (${slot.walkInReserved} for walk-ins)` : ""}
                       </span>
-                      <Badge
-                        variant={
-                          slot.status === "approved" || slot.status === "booked" ? "default" : "destructive"
-                        }
-                      >
-                        {slot.status}
-                      </Badge>
+                      <Badge variant={slot.status === "approved" ? "default" : "destructive"}>{slot.status}</Badge>
                       {slot.status === "pendingApproval" ? (
                         <SlotApproveRejectButtons hospitalId={hospitalId} slotId={slot.id} />
                       ) : null}

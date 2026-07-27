@@ -63,7 +63,11 @@ export function SubmitHealthUpdateDialog() {
           <div className="grid gap-4 py-4">
             <div className="grid gap-1.5">
               <Label htmlFor="hu-condition">How are you feeling?</Label>
-              <Select value={condition} onValueChange={(v) => v && setCondition(v as typeof condition)}>
+              <Select
+                items={{ better: "Better", same: "Same", worse: "Worse" }}
+                value={condition}
+                onValueChange={(v) => v && setCondition(v as typeof condition)}
+              >
                 <SelectTrigger id="hu-condition" className="w-full">
                   <SelectValue />
                 </SelectTrigger>

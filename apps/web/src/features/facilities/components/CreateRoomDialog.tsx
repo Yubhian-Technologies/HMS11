@@ -29,15 +29,17 @@ export function CreateRoomDialog({
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [roomNumber, setRoomNumber] = useState("");
+  const [dailyRate, setDailyRate] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSubmitting(true);
     try {
-      await createRoom({ hospitalId, branchId, wardId, roomNumber });
+      await createRoom({ hospitalId, branchId, wardId, roomNumber, dailyRate: Number(dailyRate) });
       toast.success(`Room ${roomNumber} created.`);
       setRoomNumber("");
+      setDailyRate("");
       setOpen(false);
       router.refresh();
     } catch (err) {
@@ -56,14 +58,28 @@ export function CreateRoomDialog({
             <DialogTitle>Add Room</DialogTitle>
             <DialogDescription>FR-3.5.</DialogDescription>
           </DialogHeader>
-          <div className="grid gap-1.5 py-4">
-            <Label htmlFor="room-number">Room number</Label>
-            <Input
-              id="room-number"
-              required
-              value={roomNumber}
-              onChange={(e) => setRoomNumber(e.target.value)}
-            />
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-1.5">
+              <Label htmlFor="room-number">Room number</Label>
+              <Input
+                id="room-number"
+                required
+                value={roomNumber}
+                onChange={(e) => setRoomNumber(e.target.value)}
+              />
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="room-daily-rate">Daily rate</Label>
+              <Input
+                id="room-daily-rate"
+                type="number"
+                min="0"
+                step="0.01"
+                required
+                value={dailyRate}
+                onChange={(e) => setDailyRate(e.target.value)}
+              />
+            </div>
           </div>
           <DialogFooter>
             <Button type="submit" disabled={submitting}>

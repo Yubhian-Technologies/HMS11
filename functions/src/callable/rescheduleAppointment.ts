@@ -8,24 +8,24 @@ import { sendNotification } from "../notifications/sendNotification";
 
 /**
  * FR-6.3. office only, own branch. Moves an appointment onto a different
- * approved+unbooked slot, freeing the old one (with waiting-list promotion,
- * FR-6.5, same as reject/cancel) and booking the new one. Office performing
- * the reschedule implies approval, so the appointment lands "approved"
+ * approved session pool for the same doctor, freeing the old one (with
+ * waiting-list promotion, FR-6.5, same as reject/cancel) and claiming a seat
+ * in the new one. A reschedule relocates an existing booking rather than
+ * making a fresh claim, so it draws from the *same* bucket
+ * (`bookedVia`) the appointment already held — it never consumes
+ * walk-in-reserved capacity just by being moved. Office performing the
+ * reschedule implies approval, so the appointment lands "approved"
  * regardless of its prior status.
  */
 export const rescheduleAppointment = onCall(async (request) => {
   const caller = requireCallerRole(request, ["office"]);
-  const { hospitalId, appointmentId, newSlotId } = RescheduleAppointmentRequest.parse(request.data);
+  const { hospitalId, appointmentId, newDate, newSession } = RescheduleAppointmentRequest.parse(request.data);
   assertOwnHospital(caller, hospitalId);
 
   const db = getFirestore();
   const apptRef = db.collection("appointments").doc(appointmentId);
-  const [apptSnap, newSlotSnap] = await Promise.all([
-    apptRef.get(),
-    db.collection("doctorSlots").doc(newSlotId).get(),
-  ]);
+  const apptSnap = await apptRef.get();
   const appt = apptSnap.data();
-  const newSlot = newSlotSnap.data();
 
   if (!apptSnap.exists || appt?.hospitalId !== hospitalId) {
     throw new HttpsError("not-found", "Appointment not found.");
@@ -33,32 +33,43 @@ export const rescheduleAppointment = onCall(async (request) => {
   if (caller.branchId !== appt?.branchId) {
     throw new HttpsError("permission-denied", "You can only manage appointments in your own branch.");
   }
-  if (!newSlotSnap.exists || newSlot?.hospitalId !== hospitalId || newSlot?.branchId !== appt.branchId) {
-    throw new HttpsError("not-found", "New slot not found.");
-  }
-  if (newSlot?.doctorId !== appt.doctorId) {
-    throw new HttpsError("invalid-argument", "The new slot must belong to the same doctor.");
-  }
-  if (newSlot?.status !== "approved") {
-    throw new HttpsError("failed-precondition", "The new slot is not available.");
-  }
+
+  const bookedVia = (appt.bookedVia as "online" | "walkin" | null) ?? "online";
+  const newPoolRef = db.collection("doctorSlots").doc(`${appt.doctorId}_${newDate}_${newSession}`);
+  const bucketField = bookedVia === "online" ? "onlineBookedCount" : "walkInBookedCount";
 
   const promotion: WaitlistPromotion | null = await db.runTransaction(async (tx) => {
+    const newPoolSnap = await tx.get(newPoolRef);
+    const newPool = newPoolSnap.data();
+    if (!newPoolSnap.exists || newPool?.hospitalId !== hospitalId || newPool?.branchId !== appt.branchId) {
+      throw new HttpsError("not-found", "New session not found.");
+    }
+    if (newPool?.status !== "approved") {
+      throw new HttpsError("failed-precondition", "The new session is not available.");
+    }
+    const remaining =
+      bookedVia === "online"
+        ? Math.max(0, (newPool.totalCount as number) - (newPool.walkInReserved as number) - (newPool.onlineBookedCount as number))
+        : Math.max(0, (newPool.walkInReserved as number) - (newPool.walkInBookedCount as number));
+    if (remaining <= 0) {
+      throw new HttpsError("failed-precondition", "The new session is fully booked.");
+    }
+
     const now = FieldValue.serverTimestamp();
 
-    const result = appt.slotId
+    const result = appt.session
       ? await freeSlotAndPromoteWaitlist(db, tx, {
-          slotId: appt.slotId as string,
           doctorId: appt.doctorId as string,
           date: appt.date as string,
+          session: appt.session as "morning" | "afternoon",
+          bookedVia,
         })
       : null;
 
-    tx.update(db.collection("doctorSlots").doc(newSlotId), { status: "booked", updatedAt: now });
+    tx.update(newPoolRef, { [bucketField]: FieldValue.increment(1), updatedAt: now });
     tx.update(apptRef, {
-      slotId: newSlotId,
-      date: newSlot?.date,
-      startTime: newSlot?.startTime,
+      date: newDate,
+      session: newSession,
       status: "approved",
       updatedAt: now,
     });
@@ -71,8 +82,8 @@ export const rescheduleAppointment = onCall(async (request) => {
       action: "update",
       entityType: "appointments",
       entityId: appointmentId,
-      before: { slotId: appt.slotId, date: appt.date, startTime: appt.startTime },
-      after: { slotId: newSlotId, date: newSlot?.date, startTime: newSlot?.startTime },
+      before: { date: appt.date, session: appt.session },
+      after: { date: newDate, session: newSession },
       createdAt: now,
     });
 
@@ -83,7 +94,7 @@ export const rescheduleAppointment = onCall(async (request) => {
     userId: appt.patientId as string,
     type: "appointmentConfirmation",
     title: "Appointment rescheduled",
-    body: `Your appointment is now confirmed for ${newSlot?.date} at ${newSlot?.startTime}.`,
+    body: `Your appointment is now confirmed for ${newDate} (${newSession} session).`,
     hospitalId,
     relatedEntityId: appointmentId,
   });
@@ -92,7 +103,7 @@ export const rescheduleAppointment = onCall(async (request) => {
       userId: promotion.patientId,
       type: "appointmentConfirmation",
       title: "Appointment confirmed",
-      body: `A slot opened up — your appointment on ${promotion.date} at ${promotion.startTime ?? "your assigned time"} is now confirmed.`,
+      body: `A seat opened up — your ${promotion.session} appointment on ${promotion.date} is now confirmed.`,
       hospitalId,
       relatedEntityId: promotion.appointmentId,
     });

@@ -6,6 +6,7 @@ import {
   SetWardStatusRequest,
   CreateRoomRequest,
   CreateRoomResponse,
+  UpdateRoomRequest,
   SetRoomStatusRequest,
   CreateBedRequest,
   CreateBedResponse,
@@ -20,6 +21,7 @@ export const updateWard = createCallable("updateWard", UpdateWardRequest, Succes
 export const setWardStatus = createCallable("setWardStatus", SetWardStatusRequest, SuccessResponse);
 
 export const createRoom = createCallable("createRoom", CreateRoomRequest, CreateRoomResponse);
+export const updateRoom = createCallable("updateRoom", UpdateRoomRequest, SuccessResponse);
 export const setRoomStatus = createCallable("setRoomStatus", SetRoomStatusRequest, SuccessResponse);
 
 export const createBed = createCallable("createBed", CreateBedRequest, CreateBedResponse);

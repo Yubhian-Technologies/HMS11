@@ -41,12 +41,23 @@ export const CreateRoomRequest = z
     branchId: z.string().min(1),
     wardId: z.string().min(1),
     roomNumber: z.string().min(1),
+    dailyRate: z.number().nonnegative(),
   })
   .strict();
 export type CreateRoomRequest = z.infer<typeof CreateRoomRequest>;
 
 export const CreateRoomResponse = z.object({ roomId: z.string() });
 export type CreateRoomResponse = z.infer<typeof CreateRoomResponse>;
+
+export const UpdateRoomRequest = z
+  .object({
+    hospitalId: z.string().min(1),
+    roomId: z.string().min(1),
+    roomNumber: z.string().min(1),
+    dailyRate: z.number().nonnegative(),
+  })
+  .strict();
+export type UpdateRoomRequest = z.infer<typeof UpdateRoomRequest>;
 
 export const SetRoomStatusRequest = z
   .object({

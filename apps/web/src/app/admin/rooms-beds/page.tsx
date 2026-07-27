@@ -10,9 +10,9 @@ import { CreateWardDialog } from "@/features/facilities/components/CreateWardDia
 import { EditWardDialog } from "@/features/facilities/components/EditWardDialog";
 import { WardStatusToggle } from "@/features/facilities/components/WardStatusToggle";
 import { CreateRoomDialog } from "@/features/facilities/components/CreateRoomDialog";
+import { EditRoomDialog } from "@/features/facilities/components/EditRoomDialog";
 import { RoomStatusToggle } from "@/features/facilities/components/RoomStatusToggle";
 import { CreateBedDialog } from "@/features/facilities/components/CreateBedDialog";
-import { BedStatusSelect } from "@/features/facilities/components/BedStatusSelect";
 
 export default async function RoomsBedsPage({
   searchParams,
@@ -93,11 +93,20 @@ export default async function RoomsBedsPage({
                   <div key={room.id}>
                     {i > 0 ? <Separator className="mb-4" /> : null}
                     <div className="flex items-center justify-between">
-                      <p className="text-sm font-medium text-foreground">Room {room.roomNumber}</p>
+                      <p className="text-sm font-medium text-foreground">
+                        Room {room.roomNumber}{" "}
+                        <span className="font-normal text-muted-foreground">· {room.dailyRate ?? 0}/day</span>
+                      </p>
                       <div className="flex items-center gap-2">
                         <Badge variant={room.status === "active" ? "success" : "destructive"} className="w-20 justify-center">
                           {room.status}
                         </Badge>
+                        <EditRoomDialog
+                          hospitalId={hospitalId}
+                          roomId={room.id}
+                          roomNumber={room.roomNumber}
+                          dailyRate={room.dailyRate}
+                        />
                         <RoomStatusToggle hospitalId={hospitalId} roomId={room.id} status={room.status} />
                         <CreateBedDialog hospitalId={hospitalId} branchId={branch.id} roomId={room.id} />
                       </div>
@@ -112,7 +121,7 @@ export default async function RoomsBedsPage({
                             className="flex items-center gap-2 rounded-md border border-border p-2 text-sm"
                           >
                             <span className="font-medium text-foreground">Bed {bed.bedNumber}</span>
-                            <BedStatusSelect hospitalId={hospitalId} bedId={bed.id} status={bed.status} />
+                            <Badge variant={bed.status === "available" ? "success" : "outline"}>{bed.status}</Badge>
                           </div>
                         ))}
                       </div>

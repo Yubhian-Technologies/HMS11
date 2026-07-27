@@ -1,16 +1,13 @@
 import type { BaseDoc, Weekday } from "./base";
 
-export interface AvailabilityBreak {
-  start: string;
-  end: string;
-}
+export type Session = "morning" | "afternoon";
 
 /**
- * Fixed session windows a doctor's count-based template generates into —
- * "N morning slots / M afternoon slots" rather than a doctor-picked
- * start/end time range. Shared between the createAvailabilityTemplate
- * validation (window-fit check) and generateRollingSlots (actual
- * generation), so both always agree on what "morning"/"afternoon" means.
+ * Display-only session windows — a doctor's availability is a count, not a
+ * picked start/end time range, and generated doctorSlots pool docs carry no
+ * clock time either (a consultation's actual duration can't be predicted,
+ * so nothing pretends to). This is purely a UI label (e.g. "Morning ·
+ * 09:00–13:00") for the two fixed sessions a day is split into.
  */
 export const AVAILABILITY_WINDOWS = {
   morning: { start: "09:00", end: "13:00" },
@@ -19,31 +16,37 @@ export const AVAILABILITY_WINDOWS = {
 
 /**
  * doctorAvailabilityTemplates/{id}. See docs/10-collections-schema.md.
- * Availability is defined by count, not by picking exact clock times — the
- * doctor says how many slots they're available for in each fixed session
- * (AVAILABILITY_WINDOWS); generateRollingSlots turns that into the actual
- * evenly-spaced bookable doctorSlots/{id} documents (which keep their own
- * real startTime/endTime — only how the doctor DEFINES availability changed).
+ * Availability is defined by count per session, not by picking exact clock
+ * times. `morningWalkInReserved`/`afternoonWalkInReserved` carve out part of
+ * that count exclusively for Reception's walk-in booking — 0 (default)
+ * means the feature is off and the whole count is online-bookable.
  */
 export interface DoctorAvailabilityTemplate extends BaseDoc {
   doctorId: string;
   weekday: Weekday;
   morningSlots: number;
   afternoonSlots: number;
-  slotDurationMinutes: number;
-  breaks: AvailabilityBreak[];
+  morningWalkInReserved: number;
+  afternoonWalkInReserved: number;
   status: "active" | "disabled";
 }
 
 /**
- * doctorSlots/{id}. `generatedByTemplateId` is null for Office-created
- * one-off slots (FR-4.5) — see docs/10-collections-schema.md.
+ * doctorSlots/{doctorId}_{date}_{session} — one pool per doctor/date/session,
+ * not one doc per bookable unit. Booking is an atomic counter increment
+ * (bookAppointment), not claiming a specific pre-existing document.
+ * `generatedByTemplateId` is null for Office-created one-off pools (FR-4.5).
+ * See docs/10-collections-schema.md.
  */
 export interface DoctorSlot extends BaseDoc {
   doctorId: string;
   date: string; // ISO date
-  startTime: string;
-  endTime: string;
-  status: "pendingApproval" | "approved" | "rejected" | "booked" | "blocked" | "completed";
+  session: Session;
+  totalCount: number;
+  /** Subset of totalCount reserved for Reception's walk-in booking (FR-4.5 add-on). */
+  walkInReserved: number;
+  onlineBookedCount: number;
+  walkInBookedCount: number;
+  status: "pendingApproval" | "approved" | "rejected" | "blocked";
   generatedByTemplateId: string | null;
 }

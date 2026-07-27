@@ -7,6 +7,8 @@ import { listAwaitingVitals, listReadyForCheckIn } from "@/features/reception/se
 import { CheckInButton } from "@/features/reception/components/CheckInButton";
 import { RecordVitalsDialog } from "@/features/reception/components/RecordVitalsDialog";
 
+const SESSION_LABEL: Record<string, string> = { morning: "Morning", afternoon: "Afternoon" };
+
 export default async function ReceptionPage() {
   const session = await getSession();
   if (!session?.hospitalId || !session.branchId) redirect("/login");
@@ -37,7 +39,7 @@ export default async function ReceptionPage() {
               >
                 <div>
                   <p className="font-medium text-foreground">{appt.patientName}</p>
-                  <p className="text-muted-foreground">{appt.startTime ?? "—"}</p>
+                  <p className="text-muted-foreground">{appt.session ? SESSION_LABEL[appt.session] : "—"}</p>
                 </div>
                 <CheckInButton hospitalId={hospitalId} branchId={branchId} appointmentId={appt.id} />
               </div>
@@ -64,7 +66,7 @@ export default async function ReceptionPage() {
                     {appt.patientName} {appt.token ? <Badge variant="default">#{appt.token}</Badge> : null}
                   </p>
                   <p className="text-muted-foreground">
-                    {appt.type === "emergency" ? "Emergency" : appt.startTime ?? "—"}
+                    {appt.type === "emergency" ? "Emergency" : appt.session ? SESSION_LABEL[appt.session] : "—"}
                   </p>
                 </div>
                 <RecordVitalsDialog

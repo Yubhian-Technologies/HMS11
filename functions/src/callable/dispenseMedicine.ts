@@ -34,20 +34,26 @@ export const dispenseMedicine = onCall(async (request) => {
   }
 
   const inventoryRef = db.collection("medicineInventory").doc(input.medicineInventoryItemId);
-  const inventorySnap = await inventoryRef.get();
-  const inventoryItem = inventorySnap.data();
-  if (!inventorySnap.exists || inventoryItem?.hospitalId !== input.hospitalId) {
-    throw new HttpsError("not-found", "Inventory item not found.");
-  }
-  if ((inventoryItem?.quantityInStock ?? 0) < input.quantityDispensed) {
-    throw new HttpsError("failed-precondition", "Not enough stock to dispense this quantity.");
-  }
 
   const dispenseRef = db.collection("medicineDispenses").doc();
   const today = todayIso();
   const logRefs = Array.from({ length: item.durationDays }, () => db.collection("medicineLogs").doc());
 
   await db.runTransaction(async (tx) => {
+    // Stock must be read *inside* the transaction (not via the plain .get()
+    // this used to do before the transaction started) so Firestore can
+    // detect and retry a conflicting concurrent dispense of the same item —
+    // otherwise two simultaneous dispenses both compute their decrement from
+    // the same stale count and the loser's decrement is silently lost.
+    const inventorySnap = await tx.get(inventoryRef);
+    const inventoryItem = inventorySnap.data();
+    if (!inventorySnap.exists || inventoryItem?.hospitalId !== input.hospitalId) {
+      throw new HttpsError("not-found", "Inventory item not found.");
+    }
+    if ((inventoryItem?.quantityInStock ?? 0) < input.quantityDispensed) {
+      throw new HttpsError("failed-precondition", "Not enough stock to dispense this quantity.");
+    }
+
     const now = FieldValue.serverTimestamp();
 
     tx.set(dispenseRef, {

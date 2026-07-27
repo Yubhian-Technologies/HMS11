@@ -7,6 +7,7 @@ import { getSession } from "@/lib/auth/require-role";
 import { todayIsoClient } from "@/lib/rolling-window";
 import { listDoctorQueue } from "@/features/appointments/services/read";
 import { getVitalsForAppointment } from "@/features/reception/services/read";
+import { VitalsLiveRefresh } from "@/features/reception/components/VitalsLiveRefresh";
 
 export default async function DoctorQueuePage() {
   const session = await getSession();
@@ -20,6 +21,9 @@ export default async function DoctorQueuePage() {
 
   return (
     <div className="flex flex-col gap-6">
+      {session.hospitalId && session.branchId ? (
+        <VitalsLiveRefresh hospitalId={session.hospitalId} branchId={session.branchId} />
+      ) : null}
       <h1 className="text-xl font-semibold text-foreground">Queue — Today</h1>
       <Card>
         <CardContent className="flex flex-col gap-3 pt-6">
