@@ -8,6 +8,8 @@ import { listDepartments } from "@/features/departments/services/read";
 import { listStaffByRole, listDoctorProfiles } from "@/features/staff/services/read";
 import { CreateDoctorDialog } from "@/features/staff/components/CreateDoctorDialog";
 import { CreateStaffDialog } from "@/features/staff/components/CreateStaffDialog";
+import { EditDoctorDialog } from "@/features/staff/components/EditDoctorDialog";
+import { EditStaffDialog } from "@/features/staff/components/EditStaffDialog";
 import { StaffStatusToggle } from "@/features/staff/components/StaffStatusToggle";
 
 const NON_DOCTOR_ROLES = ["office", "reception", "pharmacy", "lab"] as const;
@@ -87,6 +89,21 @@ export default async function StaffPage() {
                         <Badge variant={doctor.status === "active" ? "success" : "destructive"} className="w-20 justify-center">
                           {doctor.status}
                         </Badge>
+                        {profile ? (
+                          <EditDoctorDialog
+                            hospitalId={hospitalId}
+                            uid={doctor.id}
+                            name={doctor.name}
+                            phone={doctor.phone}
+                            branchId={doctor.branchId ?? ""}
+                            departmentId={profile.departmentId}
+                            specialization={profile.specialization}
+                            qualifications={profile.qualifications}
+                            consultationFee={profile.consultationFee}
+                            branches={branchOptions}
+                            departments={departmentOptions}
+                          />
+                        ) : null}
                         <StaffStatusToggle hospitalId={hospitalId} uid={doctor.id} status={doctor.status} />
                       </div>
                     </div>
@@ -123,6 +140,14 @@ export default async function StaffPage() {
                         <Badge variant={member.status === "active" ? "success" : "destructive"} className="w-20 justify-center">
                           {member.status}
                         </Badge>
+                        <EditStaffDialog
+                          hospitalId={hospitalId}
+                          uid={member.id}
+                          name={member.name}
+                          phone={member.phone}
+                          branchId={member.branchId ?? ""}
+                          branches={branchOptions}
+                        />
                         <StaffStatusToggle hospitalId={hospitalId} uid={member.id} status={member.status} />
                       </div>
                     </div>

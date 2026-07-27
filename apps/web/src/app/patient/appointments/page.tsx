@@ -4,6 +4,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { getSession } from "@/lib/auth/require-role";
 import { listPatientAppointments } from "@/features/appointments/services/read";
 
+const SESSION_LABEL: Record<string, string> = { morning: "Morning", afternoon: "Afternoon" };
+
 export default async function PatientAppointmentsPage() {
   const session = await getSession();
   if (!session) redirect("/login");
@@ -31,7 +33,7 @@ export default async function PatientAppointmentsPage() {
               >
                 <div>
                   <p className="font-medium text-foreground">
-                    {appt.date} {appt.startTime ? `· ${appt.startTime}` : "(waiting list)"}
+                    {appt.date} {appt.session ? `· ${SESSION_LABEL[appt.session]}` : "(waiting list)"}
                   </p>
                   <p className="text-muted-foreground">
                     {appt.type === "emergency" ? "Emergency" : "Consultation"}

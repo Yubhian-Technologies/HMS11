@@ -8,10 +8,14 @@ export interface Ward extends BaseDoc {
   status: "active" | "disabled";
 }
 
-/** rooms/{id}. See docs/10-collections-schema.md. */
+/**
+ * rooms/{id}. See docs/10-collections-schema.md. `dailyRate` bills a stay
+ * in this room (FR-15.1) — generateInvoice multiplies it by admitted days.
+ */
 export interface Room extends BaseDoc {
   wardId: string;
   roomNumber: string;
+  dailyRate: number;
   status: "active" | "disabled";
 }
 

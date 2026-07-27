@@ -1,15 +1,18 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
-import { getFirestore } from "firebase-admin/firestore";
+import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { CreateManualSlotRequest, CreateManualSlotResponse } from "@hms/shared";
 import { writeWithAudit } from "@hms/shared-server";
 import { requireCallerRole } from "../services/callable-auth";
 import { assertOwnHospital } from "../services/scope-checks";
 
 /**
- * FR-4.5. office only, own branch. Manually-added slots go straight to
- * "approved" — Office is acting on the doctor's behalf (e.g. an extra
- * covering shift confirmed out of band), so a second approval step would
- * just be friction. `generatedByTemplateId: null` marks it as a one-off.
+ * FR-4.5. office only, own branch. Adds capacity outside the doctor's
+ * recurring template: if the (doctorId, date, session) pool doesn't exist
+ * yet, creates it going straight to "approved" — Office is acting on the
+ * doctor's behalf (e.g. an extra covering shift confirmed out of band), so a
+ * second approval step would just be friction. If the pool already exists
+ * (the template already generated one for that session), tops up its count
+ * instead of creating a duplicate.
  */
 export const createManualSlot = onCall(async (request) => {
   const caller = requireCallerRole(request, ["office"]);
@@ -30,22 +33,49 @@ export const createManualSlot = onCall(async (request) => {
     throw new HttpsError("not-found", "Doctor not found in this branch.");
   }
 
-  const slotId = await writeWithAudit(db, {
+  const poolRef = db.collection("doctorSlots").doc(`${input.doctorId}_${input.date}_${input.session}`);
+  const poolSnap = await poolRef.get();
+
+  if (!poolSnap.exists) {
+    await writeWithAudit(db, {
+      collection: "doctorSlots",
+      docId: poolRef.id,
+      data: {
+        doctorId: input.doctorId,
+        date: input.date,
+        session: input.session,
+        totalCount: input.count,
+        walkInReserved: input.walkInReserved,
+        onlineBookedCount: 0,
+        walkInBookedCount: 0,
+        status: "approved",
+        generatedByTemplateId: null,
+        hospitalId: input.hospitalId,
+        branchId: input.branchId,
+        createdBy: caller.uid,
+      },
+      action: "create",
+      context: { actorId: caller.uid, actorRole: caller.role, hospitalId: input.hospitalId },
+    });
+    return CreateManualSlotResponse.parse({ slotId: poolRef.id });
+  }
+
+  const pool = poolSnap.data();
+  if (pool?.hospitalId !== input.hospitalId || pool?.branchId !== input.branchId) {
+    throw new HttpsError("not-found", "Session pool not found in this branch.");
+  }
+
+  await writeWithAudit(db, {
     collection: "doctorSlots",
+    docId: poolRef.id,
     data: {
-      doctorId: input.doctorId,
-      date: input.date,
-      startTime: input.startTime,
-      endTime: input.endTime,
-      status: "approved",
-      generatedByTemplateId: null,
-      hospitalId: input.hospitalId,
-      branchId: input.branchId,
-      createdBy: caller.uid,
+      totalCount: FieldValue.increment(input.count),
+      walkInReserved: FieldValue.increment(input.walkInReserved),
     },
-    action: "create",
+    action: "update",
+    before: pool,
     context: { actorId: caller.uid, actorRole: caller.role, hospitalId: input.hospitalId },
   });
 
-  return CreateManualSlotResponse.parse({ slotId });
+  return CreateManualSlotResponse.parse({ slotId: poolRef.id });
 });

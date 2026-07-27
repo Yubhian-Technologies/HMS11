@@ -28,7 +28,7 @@ export const dispatchAppointmentReminders = onSchedule("every day 08:00", async 
         userId: appt.patientId,
         type: "appointmentReminder",
         title: "Appointment tomorrow",
-        body: `You have an appointment tomorrow${appt.startTime ? ` at ${appt.startTime}` : ""}.`,
+        body: `You have an appointment tomorrow${appt.session ? ` (${appt.session} session)` : ""}.`,
         hospitalId: appt.hospitalId,
         relatedEntityId: doc.id,
       });

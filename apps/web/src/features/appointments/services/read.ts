@@ -5,6 +5,10 @@ import type { Appointment, DoctorProfile, User } from "@hms/shared";
 export type AppointmentRecord = Appointment & { id: string };
 export type DoctorWithProfile = { id: string; name: string; profile: DoctorProfile };
 
+function SESSION_ORDER(session: Appointment["session"]): number {
+  return session === "morning" ? 0 : session === "afternoon" ? 1 : 2;
+}
+
 export async function listDoctorsByDepartment(
   hospitalId: string,
   departmentId: string,
@@ -65,7 +69,7 @@ export async function listDoctorQueue(doctorId: string, date: string): Promise<A
     .get();
   return snap.docs
     .map((doc) => ({ id: doc.id, ...(doc.data() as Appointment) }))
-    .sort((a, b) => b.priority - a.priority || (a.startTime ?? "").localeCompare(b.startTime ?? ""));
+    .sort((a, b) => b.priority - a.priority || SESSION_ORDER(a.session) - SESSION_ORDER(b.session));
 }
 
 export async function getAppointment(appointmentId: string): Promise<AppointmentRecord | null> {

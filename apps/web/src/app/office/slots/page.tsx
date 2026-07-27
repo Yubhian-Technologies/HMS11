@@ -9,6 +9,8 @@ import { listSlotsForBranchInRange } from "@/features/scheduling/services/read";
 import { CreateManualSlotDialog } from "@/features/scheduling/components/CreateManualSlotDialog";
 import { BlockUnblockButton } from "@/features/scheduling/components/BlockUnblockButton";
 
+const SESSION_LABEL: Record<string, string> = { morning: "Morning", afternoon: "Afternoon" };
+
 export default async function OfficeSlotsPage() {
   const session = await getSession();
   if (!session?.hospitalId || !session.branchId) redirect("/login");
@@ -69,15 +71,11 @@ export default async function OfficeSlotsPage() {
                           className="flex items-center gap-2 rounded-md border border-border p-2 text-sm"
                         >
                           <span className="text-foreground">
-                            {slot.startTime}–{slot.endTime}
+                            {SESSION_LABEL[slot.session]} · {slot.onlineBookedCount + slot.walkInBookedCount}/
+                            {slot.totalCount} booked
+                            {slot.walkInReserved > 0 ? ` (${slot.walkInReserved} for walk-ins)` : ""}
                           </span>
-                          <Badge
-                            variant={
-                              slot.status === "approved" || slot.status === "booked"
-                                ? "default"
-                                : "destructive"
-                            }
-                          >
+                          <Badge variant={slot.status === "approved" ? "default" : "destructive"}>
                             {slot.status}
                           </Badge>
                           <BlockUnblockButton hospitalId={hospitalId} slotId={slot.id} status={slot.status} />

@@ -7,6 +7,8 @@ import { listBranchAppointmentsForDates } from "@/features/appointments/services
 import { listStaffByRole } from "@/features/staff/services/read";
 
 const SCHEDULED_STATUSES = new Set(["approved", "checkedIn", "completed"]);
+const SESSION_LABEL: Record<string, string> = { morning: "Morning", afternoon: "Afternoon" };
+const SESSION_ORDER: Record<string, number> = { morning: 0, afternoon: 1 };
 
 export default async function DailySchedulePage() {
   const session = await getSession();
@@ -28,7 +30,7 @@ export default async function DailySchedulePage() {
       {dates.map((date, i) => {
         const daySchedule = scheduled
           .filter((a) => a.date === date)
-          .sort((a, b) => (a.startTime ?? "").localeCompare(b.startTime ?? ""));
+          .sort((a, b) => (SESSION_ORDER[a.session ?? ""] ?? 2) - (SESSION_ORDER[b.session ?? ""] ?? 2));
 
         return (
           <Card key={date}>
@@ -46,7 +48,7 @@ export default async function DailySchedulePage() {
                   >
                     <div>
                       <p className="font-medium text-foreground">
-                        {appt.startTime ?? "—"} · {appt.patientName}
+                        {appt.session ? SESSION_LABEL[appt.session] : "—"} · {appt.patientName}
                       </p>
                       <p className="text-muted-foreground">
                         {doctorName.get(appt.doctorId) ?? "Unknown doctor"}

@@ -24,6 +24,7 @@ export const NAV_ITEMS: Record<Role, NavItem[]> = {
   super_admin: [
     { label: "Hospitals", href: "/super-admin" },
     { label: "Analytics", href: "/super-admin/analytics" },
+    { label: "Audit Logs", href: "/super-admin/audit-logs" },
     { label: "Platform Settings" },
   ],
   admin: [
@@ -35,7 +36,7 @@ export const NAV_ITEMS: Record<Role, NavItem[]> = {
     { label: "Medicine Inventory", href: "/admin/medicine-inventory" },
     { label: "Settings", href: "/admin/settings" },
     { label: "Billing Overview", href: "/admin/billing" },
-    { label: "Audit Logs" },
+    { label: "Audit Logs", href: "/admin/audit-logs" },
     { label: "Analytics", href: "/admin/analytics" },
   ],
   office: [

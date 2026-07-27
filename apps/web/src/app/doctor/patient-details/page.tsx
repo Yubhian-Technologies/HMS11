@@ -6,6 +6,8 @@ import { getAppointment } from "@/features/appointments/services/read";
 import { getPatientProfile } from "@/features/patients/services/read";
 import { getVitalsForAppointment } from "@/features/reception/services/read";
 import { getPatientHistory } from "@/features/consultations/services/read";
+import { getPatientTimeline } from "@/features/timeline/services/read";
+import { VitalsLiveRefresh } from "@/features/reception/components/VitalsLiveRefresh";
 
 export default async function PatientDetailsPage({
   searchParams,
@@ -23,14 +25,21 @@ export default async function PatientDetailsPage({
     return <p className="text-sm text-muted-foreground">Appointment not found.</p>;
   }
 
-  const [patient, vitals, history] = await Promise.all([
+  const [patient, vitals, history, timeline] = await Promise.all([
     getPatientProfile(appointment.patientId),
     getVitalsForAppointment(appointmentId),
     getPatientHistory(appointment.patientId, session.hospitalId),
+    getPatientTimeline(appointment.patientId),
   ]);
+  const recoveryEntries = timeline
+    .filter((e) => e.type === "medicineLog" || e.type === "healthUpdate")
+    .slice(0, 10);
 
   return (
     <div className="flex flex-col gap-6">
+      {session.branchId ? (
+        <VitalsLiveRefresh hospitalId={session.hospitalId} branchId={session.branchId} appointmentId={appointmentId} />
+      ) : null}
       <h1 className="text-xl font-semibold text-foreground">Patient Details</h1>
 
       <Card>
@@ -131,6 +140,29 @@ export default async function PatientDetailsPage({
               <Badge variant={o.status === "reportUploaded" ? "default" : "destructive"}>{o.status}</Badge>
             </div>
           ))}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Recovery &amp; Medicine Compliance</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3">
+          {recoveryEntries.length === 0 ? (
+            <p className="py-6 text-center text-sm text-muted-foreground">
+              No recovery updates or dose logs from the patient yet.
+            </p>
+          ) : (
+            recoveryEntries.map((entry) => (
+              <div key={entry.id} className="flex items-center justify-between rounded-md border border-border p-2 text-sm">
+                <div>
+                  <p className="font-medium text-foreground">{entry.title}</p>
+                  {entry.description ? <p className="text-muted-foreground">{entry.description}</p> : null}
+                </div>
+                <span className="text-xs text-muted-foreground">{entry.date}</span>
+              </div>
+            ))
+          )}
         </CardContent>
       </Card>
     </div>

@@ -6,6 +6,8 @@ import { Separator } from "@/components/ui/separator";
 import { AssignAdminDialog } from "@/features/hospitals/components/AssignAdminDialog";
 import { BranchStatusToggle } from "@/features/hospitals/components/BranchStatusToggle";
 import { CreateBranchDialog } from "@/features/hospitals/components/CreateBranchDialog";
+import { EditBranchDialog } from "@/features/hospitals/components/EditBranchDialog";
+import { EditHospitalDialog } from "@/features/hospitals/components/EditHospitalDialog";
 import { HospitalStatusToggle } from "@/features/hospitals/components/HospitalStatusToggle";
 import { getHospital, getUserById, listBranches } from "@/features/hospitals/services/read";
 
@@ -37,6 +39,14 @@ export default async function HospitalDetailPage({
               <Badge variant={hospital.status === "active" ? "success" : "destructive"} className="w-20 justify-center">
                 {hospital.status}
               </Badge>
+              <EditHospitalDialog
+                hospitalId={hospital.id}
+                name={hospital.name}
+                registrationNumber={hospital.registrationNumber}
+                contactEmail={hospital.contactEmail}
+                contactPhone={hospital.contactPhone}
+                address={hospital.address}
+              />
               <HospitalStatusToggle hospitalId={hospital.id} status={hospital.status} />
             </div>
           </div>
@@ -102,6 +112,13 @@ export default async function HospitalDetailPage({
                 <Badge variant={branch.status === "active" ? "success" : "destructive"} className="w-20 justify-center">
                   {branch.status}
                 </Badge>
+                <EditBranchDialog
+                  hospitalId={hospital.id}
+                  branchId={branch.id}
+                  name={branch.name}
+                  contactPhone={branch.contactPhone}
+                  address={branch.address}
+                />
                 <BranchStatusToggle hospitalId={hospital.id} branchId={branch.id} status={branch.status} />
               </div>
             </div>

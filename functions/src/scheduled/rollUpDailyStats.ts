@@ -1,5 +1,5 @@
 import { onSchedule } from "firebase-functions/v2/scheduler";
-import { FieldValue, Timestamp, getFirestore } from "firebase-admin/firestore";
+import { AggregateField, FieldValue, Timestamp, getFirestore } from "firebase-admin/firestore";
 import { addDays, todayIso } from "../services/datetime";
 
 /**
@@ -56,7 +56,7 @@ export const rollUpDailyStats = onSchedule("every day 01:00", async () => {
               .where("branchId", "==", branchId)
               .where("date", "==", date)
               .where("status", "==", "approved")
-              .count()
+              .aggregate({ totalSlots: AggregateField.sum("totalCount") })
               .get(),
             db
               .collection("patients")
@@ -88,7 +88,7 @@ export const rollUpDailyStats = onSchedule("every day 01:00", async () => {
               date,
               appointmentsCount: appointmentsCount.data().count,
               completedAppointmentsCount: completedAppointmentsCount.data().count,
-              approvedSlotsCount: approvedSlotsCount.data().count,
+              approvedSlotsCount: approvedSlotsCount.data().totalSlots ?? 0,
               newPatientsCount: newPatientsCount.data().count,
               revenue,
               totalBedsCount: totalBedsCount.data().count,

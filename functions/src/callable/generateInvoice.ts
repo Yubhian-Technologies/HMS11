@@ -1,5 +1,5 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
-import { getFirestore } from "firebase-admin/firestore";
+import { getFirestore, Timestamp } from "firebase-admin/firestore";
 import { GenerateInvoiceRequest, GenerateInvoiceResponse } from "@hms/shared";
 import { writeWithAudit } from "@hms/shared-server";
 import { requireCallerRole } from "../services/callable-auth";
@@ -100,7 +100,30 @@ export const generateInvoice = onCall(async (request) => {
       .limit(1)
       .get();
     if (!admissionsSnap.empty) {
-      admissionId = admissionsSnap.docs[0]!.id;
+      const admissionDoc = admissionsSnap.docs[0]!;
+      admissionId = admissionDoc.id;
+      const admission = admissionDoc.data();
+
+      if (admission.bedId) {
+        const bedSnap = await db.collection("beds").doc(admission.bedId as string).get();
+        const bed = bedSnap.data();
+        if (bed?.roomId) {
+          const roomSnap = await db.collection("rooms").doc(bed.roomId as string).get();
+          const dailyRate = (roomSnap.data()?.dailyRate as number | undefined) ?? 0;
+
+          const admittedAt = (admission.admittedAt as Timestamp | null)?.toDate();
+          const dischargedAt = (admission.dischargedAt as Timestamp | null)?.toDate();
+          if (admittedAt) {
+            const endDate = dischargedAt ?? new Date();
+            const days = Math.max(1, Math.ceil((endDate.getTime() - admittedAt.getTime()) / 86_400_000));
+            lineItems.push({
+              type: "room",
+              description: `Room charge (${days} day${days === 1 ? "" : "s"})`,
+              amount: days * dailyRate,
+            });
+          }
+        }
+      }
     }
   }
 

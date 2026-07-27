@@ -23,6 +23,7 @@ export function BranchSwitcher({
 
   return (
     <Select
+      items={Object.fromEntries(branches.map((b) => [b.id, b.name]))}
       value={selectedBranchId}
       onValueChange={(value) => {
         if (value) router.push(`${basePath}?branchId=${value}`);

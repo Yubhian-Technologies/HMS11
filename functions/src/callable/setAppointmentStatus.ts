@@ -10,23 +10,23 @@ import { sendNotification } from "../notifications/sendNotification";
 const STATUS_MESSAGE: Record<string, { title: string; body: (appt: FirebaseFirestore.DocumentData) => string }> = {
   approved: {
     title: "Appointment confirmed",
-    body: (appt) => `Your appointment on ${appt.date} at ${appt.startTime ?? "your assigned time"} is confirmed.`,
+    body: (appt) => `Your ${appt.session ?? ""} appointment on ${appt.date} is confirmed.`,
   },
   rejected: {
     title: "Appointment not approved",
-    body: (appt) => `Your appointment request on ${appt.date} was not approved. Please book another slot.`,
+    body: (appt) => `Your appointment request on ${appt.date} was not approved. Please book another session.`,
   },
   cancelled: {
     title: "Appointment cancelled",
-    body: (appt) => `Your appointment on ${appt.date} at ${appt.startTime ?? "your assigned time"} was cancelled.`,
+    body: (appt) => `Your ${appt.session ?? ""} appointment on ${appt.date} was cancelled.`,
   },
 };
 
 /**
- * FR-6.3. office only, own branch. Rejecting/cancelling a slot-backed
- * appointment frees the slot back to "approved" and, per FR-6.5, promotes
- * the earliest waiting-list entry for that doctor+date onto the
- * newly-freed slot in the same transaction.
+ * FR-6.3. office only, own branch. Rejecting/cancelling a session-backed
+ * appointment frees its seat in the pool and, per FR-6.5, promotes the
+ * earliest waiting-list entry for that doctor+date onto the newly-freed
+ * seat in the same transaction.
  */
 export const setAppointmentStatus = onCall(async (request) => {
   const caller = requireCallerRole(request, ["office"]);
@@ -46,7 +46,7 @@ export const setAppointmentStatus = onCall(async (request) => {
 
   const freesSlot =
     (status === "rejected" || status === "cancelled") &&
-    appt?.slotId &&
+    appt?.session &&
     (appt?.status === "pending" || appt?.status === "approved");
 
   if (!freesSlot) {
@@ -66,9 +66,10 @@ export const setAppointmentStatus = onCall(async (request) => {
     const now = FieldValue.serverTimestamp();
 
     const result = await freeSlotAndPromoteWaitlist(db, tx, {
-      slotId: appt.slotId as string,
       doctorId: appt.doctorId as string,
       date: appt.date as string,
+      session: appt.session as "morning" | "afternoon",
+      bookedVia: (appt.bookedVia as "online" | "walkin") ?? "online",
     });
 
     tx.update(apptRef, { status, updatedAt: now });
@@ -95,7 +96,7 @@ export const setAppointmentStatus = onCall(async (request) => {
       userId: promotion.patientId,
       type: "appointmentConfirmation",
       title: "Appointment confirmed",
-      body: `A slot opened up — your appointment on ${promotion.date} at ${promotion.startTime ?? "your assigned time"} is now confirmed.`,
+      body: `A seat opened up — your ${promotion.session} appointment on ${promotion.date} is now confirmed.`,
       hospitalId,
       relatedEntityId: promotion.appointmentId,
     });

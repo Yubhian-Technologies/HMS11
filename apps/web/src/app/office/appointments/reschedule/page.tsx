@@ -1,11 +1,12 @@
 import { redirect } from "next/navigation";
-import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getSession } from "@/lib/auth/require-role";
 import { rollingWindowDates, formatDateLabel } from "@/lib/rolling-window";
 import { getAppointment } from "@/features/appointments/services/read";
 import { listSlotsForDoctorInRange } from "@/features/scheduling/services/read";
 import { RescheduleSlotButton } from "@/features/appointments/components/RescheduleSlotButton";
+
+const SESSION_LABEL: Record<string, string> = { morning: "Morning", afternoon: "Afternoon" };
 
 export default async function RescheduleAppointmentPage({
   searchParams,
@@ -43,18 +44,17 @@ export default async function RescheduleAppointmentPage({
             </CardHeader>
             <CardContent>
               {daySlots.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No open slots.</p>
+                <p className="text-sm text-muted-foreground">No open sessions.</p>
               ) : (
                 <div className="flex flex-wrap gap-2">
                   {daySlots.map((slot) => (
                     <div key={slot.id} className="flex items-center gap-2 rounded-md border border-border p-2">
-                      <Badge variant="default">
-                        {slot.startTime}–{slot.endTime}
-                      </Badge>
+                      <span className="text-sm text-foreground">{SESSION_LABEL[slot.session]}</span>
                       <RescheduleSlotButton
                         hospitalId={hospitalId}
                         appointmentId={appointment.id}
-                        newSlotId={slot.id}
+                        newDate={slot.date}
+                        newSession={slot.session}
                         label="Move here"
                       />
                     </div>

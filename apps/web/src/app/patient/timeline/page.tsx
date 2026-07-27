@@ -13,6 +13,8 @@ const TYPE_LABEL: Record<string, string> = {
   admission: "Admission",
   discharge: "Discharge",
   followUp: "Follow-up",
+  medicineLog: "Medicine",
+  healthUpdate: "Recovery",
 };
 
 export default async function PatientTimelinePage() {

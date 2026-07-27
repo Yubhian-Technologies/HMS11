@@ -5,6 +5,10 @@ import type { Appointment, Vitals } from "@hms/shared";
 export type AppointmentRecord = Appointment & { id: string };
 export type VitalsRecord = Vitals & { id: string };
 
+function sessionOrder(session: Appointment["session"]): number {
+  return session === "morning" ? 0 : session === "afternoon" ? 1 : 2;
+}
+
 /** Approved appointments today, ready to check in (FR-8.1). */
 export async function listReadyForCheckIn(branchId: string, date: string): Promise<AppointmentRecord[]> {
   const snap = await getAdminDb()
@@ -15,7 +19,7 @@ export async function listReadyForCheckIn(branchId: string, date: string): Promi
     .get();
   return snap.docs
     .map((doc) => ({ id: doc.id, ...(doc.data() as Appointment) }))
-    .sort((a, b) => (a.startTime ?? "").localeCompare(b.startTime ?? ""));
+    .sort((a, b) => sessionOrder(a.session) - sessionOrder(b.session));
 }
 
 /** Checked-in today, awaiting vitals — includes emergencies (already "approved" but no slot). */

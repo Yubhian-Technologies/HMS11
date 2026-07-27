@@ -1,11 +1,20 @@
 import { z } from "zod";
 
-/** FR-6.1 / FR-6.2. patient (self) or reception (on behalf), same branch as the slot. */
+const SessionSchema = z.enum(["morning", "afternoon"]);
+
+/**
+ * FR-6.1 / FR-6.2. patient (self) or reception (on behalf), same branch as
+ * the session pool. No slotId — booking draws from the (doctorId, date,
+ * session) pool's counter; which bucket (online vs. walk-in-reserved) is
+ * decided server-side by the caller's role, not the client.
+ */
 export const BookAppointmentRequest = z
   .object({
     hospitalId: z.string().min(1),
     branchId: z.string().min(1),
-    slotId: z.string().min(1),
+    doctorId: z.string().min(1),
+    date: z.string().min(1),
+    session: SessionSchema,
     patientId: z.string().min(1),
     departmentId: z.string().min(1),
   })
@@ -43,12 +52,16 @@ export const SetAppointmentStatusRequest = z
   .strict();
 export type SetAppointmentStatusRequest = z.infer<typeof SetAppointmentStatusRequest>;
 
-/** FR-6.3. office only, own branch — moves an appointment onto a different approved slot. */
+/**
+ * FR-6.3. office only, own branch — moves an appointment onto a different
+ * approved session pool for the same doctor.
+ */
 export const RescheduleAppointmentRequest = z
   .object({
     hospitalId: z.string().min(1),
     appointmentId: z.string().min(1),
-    newSlotId: z.string().min(1),
+    newDate: z.string().min(1),
+    newSession: SessionSchema,
   })
   .strict();
 export type RescheduleAppointmentRequest = z.infer<typeof RescheduleAppointmentRequest>;

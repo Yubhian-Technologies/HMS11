@@ -9,12 +9,14 @@ import { rescheduleAppointment } from "../services/appointments";
 export function RescheduleSlotButton({
   hospitalId,
   appointmentId,
-  newSlotId,
+  newDate,
+  newSession,
   label,
 }: {
   hospitalId: string;
   appointmentId: string;
-  newSlotId: string;
+  newDate: string;
+  newSession: "morning" | "afternoon";
   label: string;
 }) {
   const router = useRouter();
@@ -23,7 +25,7 @@ export function RescheduleSlotButton({
   function handleClick() {
     startTransition(async () => {
       try {
-        await rescheduleAppointment({ hospitalId, appointmentId, newSlotId });
+        await rescheduleAppointment({ hospitalId, appointmentId, newDate, newSession });
         toast.success("Appointment rescheduled.");
         router.push("/office/appointments");
         router.refresh();
