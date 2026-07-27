@@ -10,7 +10,8 @@ export type NotificationType =
   | "prescriptionReady"
   | "followUpReminder"
   | "emergencyUpdate"
-  | "medicineExpiryAlert";
+  | "medicineExpiryAlert"
+  | "availabilityRequest";
 
 export interface SendNotificationParams {
   userId: string;

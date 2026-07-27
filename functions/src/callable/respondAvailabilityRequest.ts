@@ -4,6 +4,7 @@ import { RespondAvailabilityRequestRequest } from "@hms/shared";
 import { writeWithAudit } from "@hms/shared-server";
 import { requireCallerRole } from "../services/callable-auth";
 import { assertOwnHospital } from "../services/scope-checks";
+import { sendNotification } from "../notifications/sendNotification";
 
 /** doctor only, own request — confirms actual capacity and overall availability. */
 export const respondAvailabilityRequest = onCall(async (request) => {
@@ -35,6 +36,17 @@ export const respondAvailabilityRequest = onCall(async (request) => {
     before: existing,
     context: { actorId: caller.uid, actorRole: caller.role, hospitalId: input.hospitalId },
   });
+
+  if (existing?.createdBy) {
+    await sendNotification({
+      userId: existing.createdBy as string,
+      type: "availabilityRequest",
+      title: "Doctor responded to your availability request",
+      body: `${input.isAvailable ? "Available" : "Not available"} — ${input.morningAvailable} morning / ${input.afternoonAvailable} afternoon confirmed for ${existing.date}.`,
+      hospitalId: input.hospitalId,
+      relatedEntityId: input.requestId,
+    });
+  }
 
   return { success: true };
 });
