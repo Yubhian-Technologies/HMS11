@@ -21,7 +21,6 @@ export const storage = getStorage(app);
 export const functions = getFunctions(app);
 
 declare global {
-  // eslint-disable-next-line no-var
   var __hmsFirebaseEmulatorsConnected: boolean | undefined;
 }
 
