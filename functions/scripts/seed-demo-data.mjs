@@ -18,6 +18,20 @@ import { initializeApp, cert } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 
+// Local calendar day, NOT UTC — must match apps/web/src/lib/rolling-window.ts's
+// todayIsoClient(), since every "today" query in the app (nurse queue, office
+// slots, daily schedule) filters by this same local-day string. Using
+// `new Date().toISOString().slice(0, 10)` here would silently seed data under
+// the wrong date whenever the local timezone is ahead of UTC (e.g. IST),
+// making seeded "today" data invisible until UTC catches up.
+function todayIso() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 const usingEmulator = Boolean(process.env.FIRESTORE_EMULATOR_HOST);
 
 if (usingEmulator) {
@@ -219,7 +233,7 @@ async function main() {
   });
 
   // Today's approved slot for doctor 1, so booking/check-in has something to work with.
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayIso();
   const slotRef = db.doc(
     `${branchCollection(hospitalId, branchId, "doctors")}/${doctor1Uid}/slots/${today}_morning`,
   );

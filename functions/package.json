@@ -10,7 +10,7 @@
     "build": "tsc",
     "watch": "tsc --watch",
     "serve": "pnpm build && firebase emulators:start --only functions",
-    "deploy": "pnpm --dir .. build:shared && pnpm build && CI=true firebase deploy --only functions",
+    "deploy": "pnpm --dir .. build:shared && pnpm build && node -e \"process.env.CI='true';require('child_process').execSync('firebase deploy --only functions',{stdio:'inherit'})\"",
     "typecheck": "tsc --noEmit",
     "seed:super-admin": "node scripts/seed-super-admin.mjs",
     "seed:demo": "node scripts/seed-demo-data.mjs"

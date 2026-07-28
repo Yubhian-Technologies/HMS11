@@ -36,15 +36,25 @@ export function MedicineInventoryFormDialog({
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({
+  const emptyForm = {
     name: existing?.name ?? "",
     batchNumber: existing?.batchNumber ?? "",
     expiryDate: existing?.expiryDate ?? "",
     quantityInStock: existing ? String(existing.quantityInStock) : "",
     reorderLevel: existing ? String(existing.reorderLevel) : "",
     unitPrice: existing ? String(existing.unitPrice) : "",
-  });
+  };
+  const [form, setForm] = useState(emptyForm);
   const [submitting, setSubmitting] = useState(false);
+
+  // The dialog stays mounted between opens (just hidden), so without this the
+  // form keeps whatever was last typed — including a previous "New Item"
+  // submission's values leaking into the next one. Reset from fresh values
+  // every time it opens, not just once at mount.
+  function handleOpenChange(next: boolean) {
+    if (next) setForm(emptyForm);
+    setOpen(next);
+  }
 
   function field(key: keyof typeof form) {
     return {
@@ -93,7 +103,7 @@ export function MedicineInventoryFormDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger render={<Button variant={existing ? "outline" : "default"} size="sm" />}>
         {existing ? "Edit" : "New Item"}
       </DialogTrigger>

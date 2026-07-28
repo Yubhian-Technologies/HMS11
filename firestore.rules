@@ -41,9 +41,23 @@ service cloud.firestore {
       return hasRole(['super_admin']);
     }
 
-    // Hospital scope — role's hospitalId claim must match the PATH segment.
+    // FR-2.6: a disabled hospital's data becomes inaccessible to its own
+    // staff, even before their refresh tokens are revoked. Super Admin is
+    // exempt (needs to see/re-enable disabled hospitals); patients are
+    // exempt (ownership-scoped, history must stay visible).
+    function isActiveHospital(hospitalId) {
+      return get(/databases/$(database)/documents/hospitals/$(hospitalId)).data.status == 'active';
+    }
+
+    // Hospital scope — role's hospitalId claim must match the PATH segment,
+    // AND the hospital must be active (FR-2.6) — every staff-role check
+    // (admin/office/reception/nurse/doctor/pharmacy/lab) flows through this
+    // one function, so wiring the active-hospital gate in here covers all of
+    // them uniformly. super_admin short-circuits past this (checked first in
+    // every rule via `||`); patients never call it (ownership-scoped via
+    // isOwner instead) — both exemptions fall out of that, not special-cased here.
     function isHospitalScoped(hospitalId) {
-      return isSignedIn() && claim('hospitalId') == hospitalId;
+      return isSignedIn() && claim('hospitalId') == hospitalId && isActiveHospital(hospitalId);
     }
 
     // Branch scope — hospitalId AND branchId claims must match the PATH segments.
@@ -54,14 +68,6 @@ service cloud.firestore {
     // Ownership scope — patient's own uid must match the resource's patientId (cross-hospital).
     function isOwner(resource) {
       return isSignedIn() && claim('role') == 'patient' && resource.data.patientId == request.auth.uid;
-    }
-
-    // FR-2.6: a disabled hospital's data becomes inaccessible to its own
-    // staff, even before their refresh tokens are revoked. Super Admin is
-    // exempt (needs to see/re-enable disabled hospitals); patients are
-    // exempt (ownership-scoped, history must stay visible).
-    function isActiveHospital(hospitalId) {
-      return get(/databases/$(database)/documents/hospitals/$(hospitalId)).data.status == 'active';
     }
 
     function onlyFieldsChanged(fields) {
@@ -292,7 +298,7 @@ service cloud.firestore {
             || (hasRole(['admin']) && isHospitalScoped(hospitalId))
             || (hasRole(['office', 'reception', 'nurse']) && isBranchScoped(hospitalId, branchId))
             || (hasRole(['doctor']) && resource.data.doctorId == request.auth.uid)
-            || (hasRole(['patient']) && resource.data.patientId == request.auth.uid);
+            || (isOwner(resource));
 
           allow create: if (hasRole(['patient']) && request.resource.data.patientId == request.auth.uid)
             || (hasRole(['reception', 'office']) && isBranchScoped(hospitalId, branchId));
@@ -313,7 +319,7 @@ service cloud.firestore {
           allow read: if isSuperAdmin()
             || (hasRole(['admin']) && isHospitalScoped(hospitalId))
             || (hasRole(['doctor', 'reception', 'office', 'nurse']) && isBranchScoped(hospitalId, branchId))
-            || (hasRole(['patient']) && resource.data.patientId == request.auth.uid);
+            || (isOwner(resource));
           allow create: if hasRole(['doctor']) && isBranchScoped(hospitalId, branchId);
           allow update: if (hasRole(['doctor']) && isBranchScoped(hospitalId, branchId)) // discharge
             || (hasRole(['office']) && isBranchScoped(hospitalId, branchId)
@@ -327,7 +333,7 @@ service cloud.firestore {
           allow read: if isSuperAdmin()
             || (hasRole(['admin']) && isHospitalScoped(hospitalId))
             || (hasRole(['doctor', 'lab', 'office']) && isBranchScoped(hospitalId, branchId))
-            || (hasRole(['patient']) && resource.data.patientId == request.auth.uid);
+            || (isOwner(resource));
           allow create: if hasRole(['doctor']) && isBranchScoped(hospitalId, branchId);
           allow update: if (hasRole(['lab']) && isBranchScoped(hospitalId, branchId))
             || (hasRole(['office']) && isBranchScoped(hospitalId, branchId)
@@ -339,7 +345,7 @@ service cloud.firestore {
           allow read: if isSuperAdmin()
             || (hasRole(['admin']) && isHospitalScoped(hospitalId))
             || (hasRole(['doctor', 'pharmacy']) && isBranchScoped(hospitalId, branchId))
-            || (hasRole(['patient']) && resource.data.patientId == request.auth.uid);
+            || (isOwner(resource));
           allow create: if hasRole(['doctor']) && isBranchScoped(hospitalId, branchId);
           allow update: if hasRole(['pharmacy']) && isBranchScoped(hospitalId, branchId);
           allow delete: if false;
@@ -349,7 +355,7 @@ service cloud.firestore {
           allow read: if isSuperAdmin()
             || (hasRole(['admin']) && isHospitalScoped(hospitalId))
             || (hasRole(['office', 'reception', 'doctor']) && isBranchScoped(hospitalId, branchId))
-            || (hasRole(['patient']) && resource.data.patientId == request.auth.uid);
+            || (isOwner(resource));
           allow create: if hasRole(['doctor']) && isBranchScoped(hospitalId, branchId);
           allow update: if hasRole(['doctor']) && isBranchScoped(hospitalId, branchId);
           allow delete: if false;
@@ -359,7 +365,7 @@ service cloud.firestore {
           allow read: if isSuperAdmin()
             || (hasRole(['admin']) && isHospitalScoped(hospitalId))
             || (hasRole(['doctor']) && isBranchScoped(hospitalId, branchId))
-            || (hasRole(['patient']) && resource.data.patientId == request.auth.uid);
+            || (isOwner(resource));
           allow create: if hasRole(['doctor']) && isBranchScoped(hospitalId, branchId);
           allow update: if false;
           allow delete: if false;
@@ -369,7 +375,7 @@ service cloud.firestore {
           allow read: if isSuperAdmin()
             || (hasRole(['admin']) && isHospitalScoped(hospitalId))
             || (hasRole(['doctor']) && isBranchScoped(hospitalId, branchId))
-            || (hasRole(['patient']) && resource.data.patientId == request.auth.uid);
+            || (isOwner(resource));
           allow create: if hasRole(['doctor']) && isBranchScoped(hospitalId, branchId);
           allow update: if false;
           allow delete: if false;
@@ -379,7 +385,7 @@ service cloud.firestore {
           allow read: if isSuperAdmin()
             || (hasRole(['admin']) && isHospitalScoped(hospitalId))
             || (hasRole(['doctor', 'lab']) && isBranchScoped(hospitalId, branchId))
-            || (hasRole(['patient']) && resource.data.patientId == request.auth.uid);
+            || (isOwner(resource));
           allow create: if hasRole(['lab']) && isBranchScoped(hospitalId, branchId);
           allow update: if false; // append-only
           allow delete: if false;
@@ -389,7 +395,7 @@ service cloud.firestore {
           allow read: if isSuperAdmin()
             || (hasRole(['admin']) && isHospitalScoped(hospitalId))
             || (hasRole(['pharmacy']) && isBranchScoped(hospitalId, branchId))
-            || (hasRole(['patient']) && resource.data.patientId == request.auth.uid);
+            || (isOwner(resource));
           allow create: if hasRole(['pharmacy']) && isBranchScoped(hospitalId, branchId);
           allow update: if hasRole(['pharmacy']) && isBranchScoped(hospitalId, branchId);
           allow delete: if false;
@@ -399,10 +405,10 @@ service cloud.firestore {
           allow read: if isSuperAdmin()
             || (hasRole(['admin']) && isHospitalScoped(hospitalId))
             || (hasRole(['doctor']) && isBranchScoped(hospitalId, branchId))
-            || (hasRole(['patient']) && resource.data.patientId == request.auth.uid);
+            || (isOwner(resource));
           allow create: if false; // dispenseMedicine only
           // FR-14.1 — patient marks their own dose taken/missed/skipped.
-          allow update: if hasRole(['patient']) && resource.data.patientId == request.auth.uid
+          allow update: if isOwner(resource)
             && onlyFieldsChanged(['patientStatus', 'updatedAt']);
           allow delete: if false;
         }
@@ -420,7 +426,7 @@ service cloud.firestore {
           allow read: if isSuperAdmin()
             || (hasRole(['admin']) && isHospitalScoped(hospitalId))
             || (hasRole(['reception']) && isBranchScoped(hospitalId, branchId))
-            || (hasRole(['patient']) && resource.data.patientId == request.auth.uid);
+            || (isOwner(resource));
           allow create: if hasRole(['reception', 'admin']) && isHospitalScoped(hospitalId);
           allow update: if hasRole(['reception', 'admin']) && isHospitalScoped(hospitalId);
           allow delete: if false;
@@ -439,7 +445,7 @@ service cloud.firestore {
           allow read: if isSuperAdmin()
             || (hasRole(['admin']) && isHospitalScoped(hospitalId))
             || (hasRole(['doctor']) && isBranchScoped(hospitalId, branchId))
-            || (hasRole(['patient']) && resource.data.patientId == request.auth.uid);
+            || (isOwner(resource));
           allow create: if false; // via submitFeedback callable only
           allow update: if hasRole(['admin']) && isHospitalScoped(hospitalId)
             && onlyFieldsChanged(['status', 'updatedAt']);
@@ -459,7 +465,7 @@ service cloud.firestore {
     // unlike medicineLogs (nested above — it's created by a branch-scoped
     // dispenseMedicine call and does carry hospitalId/branchId).
     match /healthUpdates/{id} {
-      allow read: if isSuperAdmin() || (hasRole(['patient']) && resource.data.patientId == request.auth.uid);
+      allow read: if isSuperAdmin() || (isOwner(resource));
       allow create: if hasRole(['patient']) && request.resource.data.patientId == request.auth.uid;
       allow update: if false; // append-only
       allow delete: if false;

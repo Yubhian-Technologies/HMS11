@@ -283,19 +283,48 @@
     { "collectionGroup": "slots", "queryScope": "COLLECTION_GROUP", "fields": [
       { "fieldPath": "branchId", "order": "ASCENDING" },
       { "fieldPath": "date", "order": "ASCENDING" }
-    ]},
-    { "collectionGroup": "doctors", "queryScope": "COLLECTION_GROUP", "fields": [
-      { "fieldPath": "hospitalId", "order": "ASCENDING" }
-    ]},
-    { "collectionGroup": "feedback", "queryScope": "COLLECTION_GROUP", "fields": [
-      { "fieldPath": "patientId", "order": "ASCENDING" }
-    ]},
-    { "collectionGroup": "medicineInventory", "queryScope": "COLLECTION_GROUP", "fields": [
-      { "fieldPath": "status", "order": "ASCENDING" }
-    ]},
-    { "collectionGroup": "dailyStats", "queryScope": "COLLECTION_GROUP", "fields": [
-      { "fieldPath": "date", "order": "ASCENDING" }
     ]}
   ],
-  "fieldOverrides": []
+  "fieldOverrides": [
+    {
+      "collectionGroup": "doctors",
+      "fieldPath": "hospitalId",
+      "indexes": [
+        { "order": "ASCENDING", "queryScope": "COLLECTION" },
+        { "order": "DESCENDING", "queryScope": "COLLECTION" },
+        { "order": "ASCENDING", "queryScope": "COLLECTION_GROUP" },
+        { "order": "DESCENDING", "queryScope": "COLLECTION_GROUP" }
+      ]
+    },
+    {
+      "collectionGroup": "feedback",
+      "fieldPath": "patientId",
+      "indexes": [
+        { "order": "ASCENDING", "queryScope": "COLLECTION" },
+        { "order": "DESCENDING", "queryScope": "COLLECTION" },
+        { "order": "ASCENDING", "queryScope": "COLLECTION_GROUP" },
+        { "order": "DESCENDING", "queryScope": "COLLECTION_GROUP" }
+      ]
+    },
+    {
+      "collectionGroup": "medicineInventory",
+      "fieldPath": "status",
+      "indexes": [
+        { "order": "ASCENDING", "queryScope": "COLLECTION" },
+        { "order": "DESCENDING", "queryScope": "COLLECTION" },
+        { "order": "ASCENDING", "queryScope": "COLLECTION_GROUP" },
+        { "order": "DESCENDING", "queryScope": "COLLECTION_GROUP" }
+      ]
+    },
+    {
+      "collectionGroup": "dailyStats",
+      "fieldPath": "date",
+      "indexes": [
+        { "order": "ASCENDING", "queryScope": "COLLECTION" },
+        { "order": "DESCENDING", "queryScope": "COLLECTION" },
+        { "order": "ASCENDING", "queryScope": "COLLECTION_GROUP" },
+        { "order": "DESCENDING", "queryScope": "COLLECTION_GROUP" }
+      ]
+    }
+  ]
 }
