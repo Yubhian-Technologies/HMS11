@@ -81,7 +81,11 @@ export function AssignMedicineOrderForm({
           ) : (
             items.map((item, i) => (
               <div key={i} className="grid grid-cols-3 gap-2 rounded-md border border-border p-3">
-                <Select value={item.medicineInventoryId} onValueChange={(v) => selectMedicine(i, v ?? "")}>
+                <Select
+                  items={Object.fromEntries(inventory.map((m) => [m.id, m.name]))}
+                  value={item.medicineInventoryId}
+                  onValueChange={(v) => selectMedicine(i, v ?? "")}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Medicine" />
                   </SelectTrigger>

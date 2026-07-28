@@ -118,6 +118,7 @@ export function CreateDoctorDialog({
               <div className="grid gap-1.5">
                 <Label htmlFor="doc-branch">Branch</Label>
                 <Select
+                  items={Object.fromEntries(branches.map((b) => [b.id, b.name]))}
                   value={form.branchId}
                   onValueChange={(value) => setForm((f) => ({ ...f, branchId: value ?? "" }))}
                 >
@@ -136,6 +137,7 @@ export function CreateDoctorDialog({
               <div className="grid gap-1.5">
                 <Label htmlFor="doc-department">Department</Label>
                 <Select
+                  items={Object.fromEntries(departments.map((d) => [d.id, d.name]))}
                   value={form.departmentId}
                   onValueChange={(value) => setForm((f) => ({ ...f, departmentId: value ?? "" }))}
                 >

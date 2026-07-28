@@ -73,7 +73,13 @@ export function DispenseItemDialog({
           <div className="grid gap-4 py-4">
             <div className="grid gap-1.5">
               <Label htmlFor="dispense-item">Inventory item</Label>
-              <Select value={inventoryItemId} onValueChange={(v) => setInventoryItemId(v ?? "")}>
+              <Select
+                items={Object.fromEntries(
+                  inventory.map((item) => [item.id, `${item.name} (${item.quantityInStock} in stock)`]),
+                )}
+                value={inventoryItemId}
+                onValueChange={(v) => setInventoryItemId(v ?? "")}
+              >
                 <SelectTrigger id="dispense-item" className="w-full">
                   <SelectValue placeholder="Select inventory item" />
                 </SelectTrigger>

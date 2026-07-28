@@ -292,7 +292,11 @@ export function ConsultationForm({
             </label>
             {referralEnabled ? (
               <div className="grid grid-cols-3 gap-2">
-                <Select value={referralDept} onValueChange={(v) => setReferralDept(v ?? "")}>
+                <Select
+                  items={Object.fromEntries(departments.map((d) => [d.id, d.name]))}
+                  value={referralDept}
+                  onValueChange={(v) => setReferralDept(v ?? "")}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Department" />
                   </SelectTrigger>
@@ -304,7 +308,11 @@ export function ConsultationForm({
                     ))}
                   </SelectContent>
                 </Select>
-                <Select value={referralDoctor} onValueChange={(v) => setReferralDoctor(v ?? "")}>
+                <Select
+                  items={Object.fromEntries(doctors.map((d) => [d.id, d.name]))}
+                  value={referralDoctor}
+                  onValueChange={(v) => setReferralDoctor(v ?? "")}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Doctor (optional)" />
                   </SelectTrigger>
