@@ -2,7 +2,8 @@ import { redirect } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getSession } from "@/lib/auth/require-role";
-import { listStaffByRole } from "@/features/staff/services/read";
+import { listStaffByRole, listDoctorProfiles } from "@/features/staff/services/read";
+import { listDepartments } from "@/features/departments/services/read";
 import { listRequestsForBranch } from "@/features/availability-requests/services/read";
 import { CreateAvailabilityRequestDialog } from "@/features/availability-requests/components/CreateAvailabilityRequestDialog";
 
@@ -11,14 +12,17 @@ export default async function OfficeDoctorAvailabilityPage() {
   if (!session?.hospitalId || !session.branchId) redirect("/login");
   const { hospitalId, branchId } = session;
 
-  const [allDoctors, requests] = await Promise.all([
+  const [allDoctors, doctorProfiles, departments, requests] = await Promise.all([
     listStaffByRole(hospitalId, "doctor"),
+    listDoctorProfiles(hospitalId, branchId),
+    listDepartments(hospitalId),
     // Isolated: a missing/pending composite index on this newer collection
     // must degrade this one card, not crash the whole page.
     listRequestsForBranch(hospitalId, branchId).catch(() => []),
   ]);
   const doctors = allDoctors.filter((d) => d.branchId === branchId);
   const doctorName = new Map(doctors.map((d) => [d.id, d.name]));
+  const departmentIdByDoctor = new Map(doctorProfiles.map((p) => [p.id, p.departmentId]));
 
   return (
     <div className="flex flex-col gap-6">
@@ -27,7 +31,12 @@ export default async function OfficeDoctorAvailabilityPage() {
         <CreateAvailabilityRequestDialog
           hospitalId={hospitalId}
           branchId={branchId}
-          doctors={doctors.map((d) => ({ id: d.id, name: d.name }))}
+          departments={departments.map((d) => ({ id: d.id, name: d.name }))}
+          doctors={doctors.map((d) => ({
+            id: d.id,
+            name: d.name,
+            departmentId: departmentIdByDoctor.get(d.id) ?? "",
+          }))}
         />
       </div>
 

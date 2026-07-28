@@ -73,7 +73,11 @@ export function CreateEmergencyDialog({
           <div className="grid gap-4 py-4">
             <div className="grid gap-1.5">
               <Label htmlFor="er-patient">Patient</Label>
-              <Select value={patientId} onValueChange={(v) => setPatientId(v ?? "")}>
+              <Select
+                items={Object.fromEntries(patients.map((p) => [p.id, p.name]))}
+                value={patientId}
+                onValueChange={(v) => setPatientId(v ?? "")}
+              >
                 <SelectTrigger id="er-patient" className="w-full">
                   <SelectValue placeholder="Select a patient" />
                 </SelectTrigger>
@@ -88,7 +92,11 @@ export function CreateEmergencyDialog({
             </div>
             <div className="grid gap-1.5">
               <Label htmlFor="er-doctor">Doctor</Label>
-              <Select value={doctorId} onValueChange={(v) => setDoctorId(v ?? "")}>
+              <Select
+                items={Object.fromEntries(doctors.map((d) => [d.id, d.name]))}
+                value={doctorId}
+                onValueChange={(v) => setDoctorId(v ?? "")}
+              >
                 <SelectTrigger id="er-doctor" className="w-full">
                   <SelectValue placeholder="Select a doctor" />
                 </SelectTrigger>

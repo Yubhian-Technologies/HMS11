@@ -12,14 +12,14 @@ import { EditDoctorDialog } from "@/features/staff/components/EditDoctorDialog";
 import { EditStaffDialog } from "@/features/staff/components/EditStaffDialog";
 import { StaffStatusToggle } from "@/features/staff/components/StaffStatusToggle";
 
-const NON_DOCTOR_ROLES = ["office", "reception", "pharmacy", "lab"] as const;
+const NON_DOCTOR_ROLES = ["office", "reception", "nurse", "pharmacy", "lab"] as const;
 
 export default async function StaffPage() {
   const session = await getSession();
   const hospitalId = session?.hospitalId;
   if (!hospitalId) redirect("/login");
 
-  const [branches, departments, doctors, doctorProfiles, office, reception, pharmacy, lab] =
+  const [branches, departments, doctors, doctorProfiles, office, reception, nurse, pharmacy, lab] =
     await Promise.all([
       listBranches(hospitalId),
       listDepartments(hospitalId),
@@ -27,6 +27,7 @@ export default async function StaffPage() {
       listDoctorProfilesForHospital(hospitalId),
       listStaffByRole(hospitalId, "office"),
       listStaffByRole(hospitalId, "reception"),
+      listStaffByRole(hospitalId, "nurse"),
       listStaffByRole(hospitalId, "pharmacy"),
       listStaffByRole(hospitalId, "lab"),
     ]);
@@ -40,7 +41,7 @@ export default async function StaffPage() {
   const branchOptions = branches.map((b) => ({ id: b.id, name: b.name }));
   const departmentOptions = departments.map((d) => ({ id: d.id, name: d.name }));
   const profileByUid = new Map(doctorProfiles.map((p) => [p.id, p]));
-  const staffByRole = { office, reception, pharmacy, lab };
+  const staffByRole = { office, reception, nurse, pharmacy, lab };
 
   return (
     <div className="flex flex-col gap-6">
@@ -51,6 +52,7 @@ export default async function StaffPage() {
           <TabsTrigger value="doctors">Doctors</TabsTrigger>
           <TabsTrigger value="office">Office</TabsTrigger>
           <TabsTrigger value="reception">Reception</TabsTrigger>
+          <TabsTrigger value="nurse">Nurse</TabsTrigger>
           <TabsTrigger value="pharmacy">Pharmacy</TabsTrigger>
           <TabsTrigger value="lab">Laboratory</TabsTrigger>
         </TabsList>

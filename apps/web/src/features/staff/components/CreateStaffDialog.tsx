@@ -21,6 +21,7 @@ import { createStaffAccount } from "../services/staff";
 const ROLE_LABEL = {
   office: "Office",
   reception: "Reception",
+  nurse: "Nurse",
   pharmacy: "Pharmacy",
   lab: "Laboratory",
 } as const;
@@ -96,6 +97,7 @@ export function CreateStaffDialog({
             <div className="grid gap-1.5">
               <Label htmlFor="staff-branch">Branch</Label>
               <Select
+                items={Object.fromEntries(branches.map((b) => [b.id, b.name]))}
                 value={form.branchId}
                 onValueChange={(value) => setForm((f) => ({ ...f, branchId: value ?? "" }))}
               >

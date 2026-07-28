@@ -60,7 +60,11 @@ export function AssignBedDialog({
             <DialogDescription>Only currently available beds are listed.</DialogDescription>
           </DialogHeader>
           <div className="py-4">
-            <Select value={bedId} onValueChange={(v) => setBedId(v ?? "")}>
+            <Select
+              items={Object.fromEntries(beds.map((b) => [b.id, b.label]))}
+              value={bedId}
+              onValueChange={(v) => setBedId(v ?? "")}
+            >
               <SelectTrigger className="w-full">
                 <SelectValue placeholder="Select an available bed" />
               </SelectTrigger>

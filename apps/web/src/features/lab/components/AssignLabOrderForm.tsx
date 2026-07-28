@@ -49,7 +49,11 @@ export function AssignLabOrderForm({
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="grid grid-cols-3 gap-2">
-          <Select value={appointmentId} onValueChange={(v) => setAppointmentId(v ?? "")}>
+          <Select
+            items={Object.fromEntries(patients.map((p) => [p.appointmentId, p.name]))}
+            value={appointmentId}
+            onValueChange={(v) => setAppointmentId(v ?? "")}
+          >
             <SelectTrigger>
               <SelectValue placeholder="Patient" />
             </SelectTrigger>
@@ -61,7 +65,11 @@ export function AssignLabOrderForm({
               ))}
             </SelectContent>
           </Select>
-          <Select value={testId} onValueChange={(v) => setTestId(v ?? "")}>
+          <Select
+            items={Object.fromEntries(labTests.map((t) => [t.id, `${t.name} (${t.price})`]))}
+            value={testId}
+            onValueChange={(v) => setTestId(v ?? "")}
+          >
             <SelectTrigger>
               <SelectValue placeholder="Lab test" />
             </SelectTrigger>
