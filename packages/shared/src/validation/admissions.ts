@@ -36,6 +36,24 @@ export const AssignBedToAdmissionRequest = z
 export type AssignBedToAdmissionRequest = z.infer<typeof AssignBedToAdmissionRequest>;
 
 /**
+ * office only, own branch. Office explicitly picks the ward-care nurse for
+ * an already-`admitted` patient — nurses no longer self-assign by being the
+ * first to touch updateWardCareStatus.
+ */
+export const AssignNurseToAdmissionRequest = z
+  .object({
+    hospitalId: z.string().min(1),
+    branchId: z.string().min(1),
+    admissionId: z.string().min(1),
+    nurseId: z.string().min(1),
+  })
+  .strict();
+export type AssignNurseToAdmissionRequest = z.infer<typeof AssignNurseToAdmissionRequest>;
+
+export const AssignNurseToAdmissionResponse = z.object({ success: z.boolean() });
+export type AssignNurseToAdmissionResponse = z.infer<typeof AssignNurseToAdmissionResponse>;
+
+/**
  * Nurse only, own ward — ward-care progress notes during an admission.
  * Deliberately cannot touch `bedId`/`status` (Office/Doctor own bed
  * assignment and discharge respectively) — docs/08-permission-matrix.md

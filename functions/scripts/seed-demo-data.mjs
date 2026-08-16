@@ -170,7 +170,7 @@ async function main() {
     hospitalId,
     branchId,
   });
-  const receptionUid = await createStaff({
+  await createStaff({
     email: "reception@citygeneral.demo",
     name: "Rita Reception",
     role: "reception",
@@ -242,6 +242,7 @@ async function main() {
     session: "morning",
     totalCount: 20,
     walkInReserved: 5,
+    checkInCutoffMinutes: 15,
     onlineBookedCount: 0,
     walkInBookedCount: 0,
     status: "approved",
@@ -330,9 +331,10 @@ async function main() {
     session: "morning",
     bookedVia: "online",
     status: "CHECKED_IN",
-    checkIn: { checkedInAt: now, checkedInBy: receptionUid, token: "001" },
+    checkIn: { checkedInAt: now, checkedInBy: officeUid, token: "001" },
     vitals: null,
     consultationSummary: null,
+    consultDraft: null,
     waitingListPosition: null,
     hospitalId,
     branchId,

@@ -7,41 +7,27 @@ import {
 } from "@/features/consultations/services/admissions-read";
 import { getPatientProfile } from "@/features/patients/services/read";
 import { DischargeDialog } from "@/features/consultations/components/DischargeDialog";
-import { AssignBedDialog } from "@/features/consultations/components/AssignBedDialog";
-import { listBeds, listRooms, listWards } from "@/features/facilities/services/read";
 
+/**
+ * Bed allocation is Office's job (Phase D Branch 1), not the doctor's — the
+ * doctor only flagged the admission request via submitConsultation. This
+ * page is read-only for the "awaiting a bed" list; discharge stays a
+ * doctor action.
+ */
 export default async function DoctorAdmissionsPage() {
   const session = await getSession();
   if (!session?.hospitalId || !session.branchId) redirect("/login");
   const { hospitalId, branchId, uid: doctorId } = session;
 
-  const [admissions, pendingBed, wards] = await Promise.all([
+  const [admissions, pendingBed] = await Promise.all([
     listActiveAdmissionsForDoctor(hospitalId, branchId, doctorId),
     listPendingBedAssignmentsForDoctor(hospitalId, branchId, doctorId),
-    listWards(hospitalId, branchId),
   ]);
   const withPatients = await Promise.all(
     admissions.map(async (a) => ({ admission: a, patient: await getPatientProfile(a.patientId) })),
   );
   const pendingWithPatient = await Promise.all(
     pendingBed.map(async (a) => ({ admission: a, patient: await getPatientProfile(a.patientId) })),
-  );
-
-  const wardsWithRooms = await Promise.all(
-    wards.map(async (ward) => {
-      const rooms = await listRooms(hospitalId, branchId, ward.id);
-      const roomsWithBeds = await Promise.all(
-        rooms.map(async (room) => ({ room, beds: await listBeds(hospitalId, branchId, room.id) })),
-      );
-      return { ward, roomsWithBeds };
-    }),
-  );
-  const availableBedOptions = wardsWithRooms.flatMap(({ ward, roomsWithBeds }) =>
-    roomsWithBeds.flatMap(({ room, beds }) =>
-      beds
-        .filter((b) => b.status === "available")
-        .map((b) => ({ id: b.id, label: `${ward.name} · Room ${room.roomNumber} · Bed ${b.bedNumber}` })),
-    ),
   );
 
   return (
@@ -64,12 +50,7 @@ export default async function DoctorAdmissionsPage() {
                 className="flex items-center justify-between rounded-md border border-border p-3 text-sm"
               >
                 <p className="font-medium text-foreground">{patient?.name ?? "Unknown patient"}</p>
-                <AssignBedDialog
-                  hospitalId={hospitalId}
-                  branchId={branchId}
-                  admissionId={admission.id}
-                  beds={availableBedOptions}
-                />
+                <span className="text-muted-foreground">Awaiting Office bed assignment</span>
               </div>
             ))
           )}

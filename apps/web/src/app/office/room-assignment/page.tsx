@@ -2,8 +2,9 @@ import { redirect } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getSession } from "@/lib/auth/require-role";
-import { listPendingBedAssignments } from "@/features/consultations/services/admissions-read";
+import { listPendingBedAssignments, listActiveAdmissions } from "@/features/consultations/services/admissions-read";
 import { AssignBedDialog } from "@/features/consultations/components/AssignBedDialog";
+import { AssignNurseDialog } from "@/features/consultations/components/AssignNurseDialog";
 import { getPatientProfile } from "@/features/patients/services/read";
 import { listStaffByRole } from "@/features/staff/services/read";
 import { listBeds, listRooms, listWards } from "@/features/facilities/services/read";
@@ -14,17 +15,24 @@ export default async function OfficeRoomAssignmentPage() {
   if (!session?.hospitalId || !session.branchId) redirect("/login");
   const { hospitalId, branchId } = session;
 
-  const [pending, doctors, wards] = await Promise.all([
+  const [pending, admitted, doctors, nurses, wards] = await Promise.all([
     // Isolated: a missing/pending composite index must degrade this
     // section, not crash the whole page.
     listPendingBedAssignments(hospitalId, branchId).catch(() => []),
+    listActiveAdmissions(hospitalId, branchId).catch(() => []),
     listStaffByRole(hospitalId, "doctor"),
+    listStaffByRole(hospitalId, "nurse"),
     listWards(hospitalId, branchId),
   ]);
   const doctorName = new Map(doctors.map((d) => [d.id, d.name]));
+  const branchNurses = nurses.filter((n) => n.branchId === branchId).map((n) => ({ id: n.id, name: n.name }));
+  const nurseName = new Map(branchNurses.map((n) => [n.id, n.name]));
 
   const pendingWithPatient = await Promise.all(
     pending.map(async (admission) => ({ admission, patient: await getPatientProfile(admission.patientId) })),
+  );
+  const admittedWithPatient = await Promise.all(
+    admitted.map(async (admission) => ({ admission, patient: await getPatientProfile(admission.patientId) })),
   );
 
   const wardsWithRooms = await Promise.all(
@@ -73,6 +81,38 @@ export default async function OfficeRoomAssignmentPage() {
                   branchId={branchId}
                   admissionId={admission.id}
                   beds={availableBedOptions}
+                />
+              </div>
+            ))
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Currently Admitted — Assign Nurse</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3">
+          {admittedWithPatient.length === 0 ? (
+            <p className="py-6 text-center text-sm text-muted-foreground">No patients currently admitted.</p>
+          ) : (
+            admittedWithPatient.map(({ admission, patient }) => (
+              <div
+                key={admission.id}
+                className="flex items-center justify-between rounded-md border border-border p-3 text-sm"
+              >
+                <div>
+                  <p className="font-medium text-foreground">{patient?.name ?? "Unknown patient"}</p>
+                  <p className="text-muted-foreground">
+                    Under {doctorName.get(admission.doctorId) ?? "Unknown doctor"}
+                  </p>
+                </div>
+                <AssignNurseDialog
+                  hospitalId={hospitalId}
+                  branchId={branchId}
+                  admissionId={admission.id}
+                  currentNurseName={admission.nurseId ? (nurseName.get(admission.nurseId) ?? "Assigned") : null}
+                  nurses={branchNurses}
                 />
               </div>
             ))

@@ -12,9 +12,11 @@ const SESSION_LABEL: Record<string, string> = { morning: "morning", afternoon: "
  * specific pre-existing document — Patient can only draw from the
  * non-reserved (online) portion; Reception draws from the walk-in-reserved
  * portion first, falling back to the online portion if the reserved pool is
- * exhausted (FR-4.5 add-on). The appointment itself starts "pending" —
- * Office still has to approve the booking (FR-6.3), a separate gate from
- * the doctor having approved the session pool's existence (FR-4.4).
+ * exhausted (FR-4.5 add-on). A patient's own online booking starts "PENDING"
+ * — Office still has to approve it (FR-6.3), a separate gate from the doctor
+ * having approved the session pool's existence (FR-4.4). A Reception-made
+ * walk-in booking is already staff-initiated in person, so it starts
+ * "BOOKED" directly — no separate Office approval gate for walk-ins.
  */
 export const bookAppointment = onCall(async (request) => {
   const caller = requireCallerRole(request, ["patient", "reception"]);
@@ -73,6 +75,7 @@ export const bookAppointment = onCall(async (request) => {
     }
 
     const now = FieldValue.serverTimestamp();
+    const initialStatus = caller.role === "reception" ? "BOOKED" : "PENDING";
 
     tx.update(poolRef, {
       [bucket === "online" ? "onlineBookedCount" : "walkInBookedCount"]: FieldValue.increment(1),
@@ -92,7 +95,8 @@ export const bookAppointment = onCall(async (request) => {
       checkIn: null,
       vitals: null,
       consultationSummary: null,
-      status: "PENDING",
+      consultDraft: null,
+      status: initialStatus,
       waitingListPosition: null,
       hospitalId: input.hospitalId,
       branchId: input.branchId,
@@ -123,21 +127,25 @@ export const bookAppointment = onCall(async (request) => {
       entityType: "appointments",
       entityId: appointmentRef.id,
       before: null,
-      after: { patientId: input.patientId, doctorId: input.doctorId, status: "PENDING" },
+      after: { patientId: input.patientId, doctorId: input.doctorId, status: initialStatus },
       createdAt: now,
     });
 
-    return bucket;
+    return { bucket, initialStatus };
   });
 
+  const finalStatus = caller.role === "reception" ? "BOOKED" : "PENDING";
   await sendNotification({
     userId: input.patientId,
     type: "appointmentConfirmation",
-    title: "Appointment requested",
-    body: `Your ${SESSION_LABEL[input.session]} appointment on ${input.date} is pending Office approval.`,
+    title: finalStatus === "BOOKED" ? "Appointment confirmed" : "Appointment requested",
+    body:
+      finalStatus === "BOOKED"
+        ? `Your ${SESSION_LABEL[input.session]} appointment on ${input.date} is confirmed.`
+        : `Your ${SESSION_LABEL[input.session]} appointment on ${input.date} is pending Office approval.`,
     hospitalId: input.hospitalId,
     relatedEntityId: appointmentRef.id,
   });
 
-  return BookAppointmentResponse.parse({ appointmentId: appointmentRef.id, status: "PENDING" });
+  return BookAppointmentResponse.parse({ appointmentId: appointmentRef.id, status: finalStatus });
 });

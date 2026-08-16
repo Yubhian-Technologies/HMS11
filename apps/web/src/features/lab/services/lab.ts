@@ -2,8 +2,6 @@ import {
   AdvanceLabOrderStatusRequest,
   UploadLabReportRequest,
   UploadLabReportResponse,
-  AssignLabOrderRequest,
-  AssignLabOrderResponse,
   MarkLabOrderPaidRequest,
 } from "@hms/shared";
 import { z } from "zod";
@@ -22,7 +20,5 @@ export const uploadLabReport = createCallable(
   UploadLabReportRequest,
   UploadLabReportResponse,
 );
-
-export const assignLabOrder = createCallable("assignLabOrder", AssignLabOrderRequest, AssignLabOrderResponse);
 
 export const markLabOrderPaid = createCallable("markLabOrderPaid", MarkLabOrderPaidRequest, SuccessResponse);

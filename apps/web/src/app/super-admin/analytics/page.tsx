@@ -1,35 +1,22 @@
+import { Building2, CalendarCheck, Users } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getPlatformAnalytics } from "@/features/analytics/services/read";
+import { PageHeader } from "@/components/page-header";
+import { EmptyState } from "@/components/empty-state";
+import { StatTile, StatTileRow } from "@/components/stat-tile";
 
 export default async function SuperAdminAnalyticsPage() {
   const analytics = await getPlatformAnalytics();
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-xl font-semibold text-foreground">Platform Analytics</h1>
+      <PageHeader title="Platform Analytics" />
 
-      <div className="grid gap-4 sm:grid-cols-3">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Hospitals</CardTitle>
-          </CardHeader>
-          <CardContent className="text-3xl font-semibold text-foreground">{analytics.hospitalCount}</CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Active users</CardTitle>
-          </CardHeader>
-          <CardContent className="text-3xl font-semibold text-foreground">{analytics.activeUserCount}</CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Appointments (7d)</CardTitle>
-          </CardHeader>
-          <CardContent className="text-3xl font-semibold text-foreground">
-            {analytics.appointmentVolume7d}
-          </CardContent>
-        </Card>
-      </div>
+      <StatTileRow>
+        <StatTile icon={Building2} label="Hospitals" value={analytics.hospitalCount} tone="info" />
+        <StatTile icon={Users} label="Active Users" value={analytics.activeUserCount} tone="info" />
+        <StatTile icon={CalendarCheck} label="Appointments (7d)" value={analytics.appointmentVolume7d} tone="success" />
+      </StatTileRow>
 
       <Card>
         <CardHeader>
@@ -37,9 +24,7 @@ export default async function SuperAdminAnalyticsPage() {
         </CardHeader>
         <CardContent>
           {analytics.trend.length === 0 ? (
-            <p className="py-6 text-center text-sm text-muted-foreground">
-              No data yet — rollUpDailyStats runs nightly.
-            </p>
+            <EmptyState icon={CalendarCheck} message="No data yet — rollUpDailyStats runs nightly." />
           ) : (
             <div className="flex flex-col gap-2">
               {analytics.trend.map((point) => (

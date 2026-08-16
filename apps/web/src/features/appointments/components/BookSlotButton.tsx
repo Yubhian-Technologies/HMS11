@@ -33,8 +33,10 @@ export function BookSlotButton({
   function handleClick() {
     startTransition(async () => {
       try {
-        await bookAppointment({ hospitalId, branchId, doctorId, date, session, patientId, departmentId });
-        toast.success("Appointment booked — pending Office approval.");
+        const result = await bookAppointment({ hospitalId, branchId, doctorId, date, session, patientId, departmentId });
+        toast.success(
+          result.status === "BOOKED" ? "Appointment booked." : "Appointment booked — pending Office approval.",
+        );
         router.push(redirectTo);
         router.refresh();
       } catch (err) {

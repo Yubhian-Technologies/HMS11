@@ -16,9 +16,15 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { createAvailabilityRequest } from "../services/availabilityRequests";
+import { bulkCreateManualSlots } from "../services/scheduling";
 
-export function CreateAvailabilityRequestDialog({
+/**
+ * Phase A step 1 in one action: pick a doctor, set a morning + afternoon
+ * count, and it's proposed across all 3 days of the current rolling window
+ * (up to 6 session-unit proposals) — instead of six separate "New Slot
+ * Proposal" clicks via CreateManualSlotDialog.
+ */
+export function BulkProposeCapacityDialog({
   hospitalId,
   branchId,
   departments,
@@ -33,9 +39,8 @@ export function CreateAvailabilityRequestDialog({
   const [open, setOpen] = useState(false);
   const [departmentId, setDepartmentId] = useState("");
   const [doctorId, setDoctorId] = useState("");
-  const [date, setDate] = useState("");
-  const [morningRequested, setMorningRequested] = useState("");
-  const [afternoonRequested, setAfternoonRequested] = useState("");
+  const [morningCount, setMorningCount] = useState("10");
+  const [afternoonCount, setAfternoonCount] = useState("10");
   const [submitting, setSubmitting] = useState(false);
 
   const doctorsInDepartment = departmentId ? doctors.filter((d) => d.departmentId === departmentId) : [];
@@ -49,24 +54,20 @@ export function CreateAvailabilityRequestDialog({
     e.preventDefault();
     setSubmitting(true);
     try {
-      await createAvailabilityRequest({
+      const { slotIds } = await bulkCreateManualSlots({
         hospitalId,
         branchId,
         doctorId,
-        date,
-        morningRequested: Number(morningRequested),
-        afternoonRequested: Number(afternoonRequested),
+        morningCount: Number(morningCount),
+        afternoonCount: Number(afternoonCount),
       });
-      toast.success("Availability request sent.");
+      toast.success(`Proposed capacity for ${slotIds.length} session${slotIds.length === 1 ? "" : "s"} across the 3-day window.`);
       setDepartmentId("");
       setDoctorId("");
-      setDate("");
-      setMorningRequested("");
-      setAfternoonRequested("");
       setOpen(false);
       router.refresh();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to send request.");
+      toast.error(err instanceof Error ? err.message : "Failed to propose capacity.");
     } finally {
       setSubmitting(false);
     }
@@ -74,22 +75,26 @@ export function CreateAvailabilityRequestDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={<Button size="sm" />}>Request Availability</DialogTrigger>
+      <DialogTrigger render={<Button size="sm" variant="outline" />}>Propose Full 3-Day Window</DialogTrigger>
       <DialogContent>
         <form onSubmit={handleSubmit}>
           <DialogHeader>
-            <DialogTitle>Request Doctor Availability</DialogTitle>
-            <DialogDescription>Ask a doctor to confirm slot capacity for a date.</DialogDescription>
+            <DialogTitle>Propose Capacity — Full Rolling Window</DialogTitle>
+            <DialogDescription>
+              Applies these morning/afternoon counts to all 3 days of the current window for one doctor in a
+              single action. Each day still becomes bookable only after the doctor confirms and you split &amp;
+              release it.
+            </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid gap-1.5">
-              <Label htmlFor="avail-department">Department</Label>
+              <Label htmlFor="bulk-department">Department</Label>
               <Select
                 items={Object.fromEntries(departments.map((d) => [d.id, d.name]))}
                 value={departmentId}
                 onValueChange={(v) => selectDepartment(v ?? "")}
               >
-                <SelectTrigger id="avail-department" className="w-full">
+                <SelectTrigger id="bulk-department" className="w-full">
                   <SelectValue placeholder="Select a department" />
                 </SelectTrigger>
                 <SelectContent>
@@ -102,14 +107,14 @@ export function CreateAvailabilityRequestDialog({
               </Select>
             </div>
             <div className="grid gap-1.5">
-              <Label htmlFor="avail-doctor">Doctor</Label>
+              <Label htmlFor="bulk-doctor">Doctor</Label>
               <Select
                 items={Object.fromEntries(doctorsInDepartment.map((d) => [d.id, d.name]))}
                 value={doctorId}
                 onValueChange={(v) => setDoctorId(v ?? "")}
                 disabled={!departmentId}
               >
-                <SelectTrigger id="avail-doctor" className="w-full">
+                <SelectTrigger id="bulk-doctor" className="w-full">
                   <SelectValue placeholder={departmentId ? "Select a doctor" : "Select a department first"} />
                 </SelectTrigger>
                 <SelectContent>
@@ -121,38 +126,34 @@ export function CreateAvailabilityRequestDialog({
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid gap-1.5">
-              <Label htmlFor="avail-date">Date</Label>
-              <Input id="avail-date" type="date" required value={date} onChange={(e) => setDate(e.target.value)} />
-            </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-1.5">
-                <Label htmlFor="avail-morning">Morning slots requested</Label>
+                <Label htmlFor="bulk-morning">Morning (per day)</Label>
                 <Input
-                  id="avail-morning"
+                  id="bulk-morning"
                   type="number"
                   min="0"
                   required
-                  value={morningRequested}
-                  onChange={(e) => setMorningRequested(e.target.value)}
+                  value={morningCount}
+                  onChange={(e) => setMorningCount(e.target.value)}
                 />
               </div>
               <div className="grid gap-1.5">
-                <Label htmlFor="avail-afternoon">Afternoon slots requested</Label>
+                <Label htmlFor="bulk-afternoon">Afternoon (per day)</Label>
                 <Input
-                  id="avail-afternoon"
+                  id="bulk-afternoon"
                   type="number"
                   min="0"
                   required
-                  value={afternoonRequested}
-                  onChange={(e) => setAfternoonRequested(e.target.value)}
+                  value={afternoonCount}
+                  onChange={(e) => setAfternoonCount(e.target.value)}
                 />
               </div>
             </div>
           </div>
           <DialogFooter>
-            <Button type="submit" disabled={submitting || !doctorId || !date}>
-              {submitting ? "Sending…" : "Send Request"}
+            <Button type="submit" disabled={submitting || !doctorId}>
+              {submitting ? "Proposing…" : "Propose Across 3 Days"}
             </Button>
           </DialogFooter>
         </form>

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Badge } from "@/components/ui/badge";
+import { MapPin } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { AssignAdminDialog } from "@/features/hospitals/components/AssignAdminDialog";
@@ -10,6 +10,9 @@ import { EditBranchDialog } from "@/features/hospitals/components/EditBranchDial
 import { EditHospitalDialog } from "@/features/hospitals/components/EditHospitalDialog";
 import { HospitalStatusToggle } from "@/features/hospitals/components/HospitalStatusToggle";
 import { getHospital, getUserById, listBranches } from "@/features/hospitals/services/read";
+import { EmptyState } from "@/components/empty-state";
+import { StatusBadge } from "@/components/status-badge";
+import { ACTIVE_DISABLED_STATUS_META } from "@/lib/status-meta";
 
 export default async function HospitalDetailPage({
   params,
@@ -36,9 +39,7 @@ export default async function HospitalDetailPage({
           <div className="flex items-center justify-between gap-2">
             <CardTitle className="text-lg">{hospital.name}</CardTitle>
             <div className="flex items-center gap-2">
-              <Badge variant={hospital.status === "active" ? "success" : "destructive"} className="w-20 justify-center">
-                {hospital.status}
-              </Badge>
+              <StatusBadge {...ACTIVE_DISABLED_STATUS_META[hospital.status]} />
               <EditHospitalDialog
                 hospitalId={hospital.id}
                 name={hospital.name}
@@ -97,6 +98,9 @@ export default async function HospitalDetailPage({
           </div>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
+          {branches.length === 0 ? (
+            <EmptyState icon={MapPin} message="No branches yet. Create the first one to get started." />
+          ) : null}
           {branches.map((branch) => (
             <div
               key={branch.id}
@@ -109,9 +113,7 @@ export default async function HospitalDetailPage({
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                <Badge variant={branch.status === "active" ? "success" : "destructive"} className="w-20 justify-center">
-                  {branch.status}
-                </Badge>
+                <StatusBadge {...ACTIVE_DISABLED_STATUS_META[branch.status]} />
                 <EditBranchDialog
                   hospitalId={hospital.id}
                   branchId={branch.id}

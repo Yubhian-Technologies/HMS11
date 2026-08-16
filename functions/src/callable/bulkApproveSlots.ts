@@ -5,10 +5,11 @@ import { requireCallerRole } from "../services/callable-auth";
 import { assertOwnHospital } from "../services/scope-checks";
 
 /**
- * FR-4.4 — doctor bulk-approves every pendingApproval slot for one date. No
- * `branchId` in the request — doctor is branch-scoped by claim, so
- * `caller.branchId` locates the nested `slots` collection (same pattern as
- * `setBedStatus`/`respondAvailabilityRequest`).
+ * Doctor bulk-confirms every Office-proposed (`proposed`) slot for one date,
+ * accepting Office's proposed totals as-is — the "no changes needed"
+ * shortcut so a doctor doesn't have to open each of a day's proposals one at
+ * a time. Individual adjustment still goes through submitSlotProposal. The
+ * online/walk-in split still happens afterward, at Office's publish step.
  */
 export const bulkApproveSlots = onCall(async (request) => {
   const caller = requireCallerRole(request, ["doctor"]);
@@ -16,7 +17,7 @@ export const bulkApproveSlots = onCall(async (request) => {
   assertOwnHospital(caller, hospitalId);
 
   if (caller.uid !== doctorId) {
-    throw new HttpsError("permission-denied", "Doctors can only approve their own slots.");
+    throw new HttpsError("permission-denied", "Doctors can only confirm their own slots.");
   }
 
   const db = getFirestore();
@@ -24,17 +25,17 @@ export const bulkApproveSlots = onCall(async (request) => {
   const snap = await db
     .collection(slotsCollection)
     .where("date", "==", date)
-    .where("status", "==", "pendingApproval")
+    .where("status", "==", "proposed")
     .get();
 
   if (snap.empty) {
-    return BulkApproveSlotsResponse.parse({ approvedCount: 0 });
+    return BulkApproveSlotsResponse.parse({ confirmedCount: 0 });
   }
 
   const now = FieldValue.serverTimestamp();
   const batch = db.batch();
   snap.docs.forEach((doc) => {
-    batch.update(doc.ref, { status: "approved", updatedAt: now });
+    batch.update(doc.ref, { status: "doctorReviewed", updatedAt: now });
   });
   const auditRef = db.collection("auditLogs").doc();
   batch.set(auditRef, {
@@ -44,11 +45,11 @@ export const bulkApproveSlots = onCall(async (request) => {
     action: "statusChange",
     entityType: "doctorSlots",
     entityId: `bulk:${doctorId}:${date}`,
-    before: { status: "pendingApproval" },
-    after: { status: "approved", count: snap.size },
+    before: { status: "proposed" },
+    after: { status: "doctorReviewed", count: snap.size },
     createdAt: now,
   });
   await batch.commit();
 
-  return BulkApproveSlotsResponse.parse({ approvedCount: snap.size });
+  return BulkApproveSlotsResponse.parse({ confirmedCount: snap.size });
 });

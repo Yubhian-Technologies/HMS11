@@ -6,13 +6,14 @@ import { requireCallerRole } from "../services/callable-auth";
 import { assertOwnHospital } from "../services/scope-checks";
 
 /**
- * FR-4.5. office only, own branch. Adds capacity outside the doctor's
- * recurring template: if the (doctorId, date, session) pool doesn't exist
- * yet, creates it going straight to "approved" — Office is acting on the
- * doctor's behalf (e.g. an extra covering shift confirmed out of band), so a
- * second approval step would just be friction. If the pool already exists
- * (the template already generated one for that session), tops up its count
- * instead of creating a duplicate.
+ * Office only, own branch — the sole way a capacity pool originates. Creates
+ * a session pool as `proposed` — it is NOT bookable until the doctor
+ * confirms the total (submitSlotProposal) and Office splits + releases it
+ * (setSlotStatus → `approved`). If the (doctorId, date, session) pool
+ * already exists, top up its total instead of creating a duplicate; its
+ * status is left untouched. The online/walk-in split is deliberately not
+ * set here — that's Office's decision at publish time, after the doctor has
+ * confirmed the total (Phase A: confirm-then-split, not split-then-confirm).
  */
 export const createManualSlot = onCall(async (request) => {
   const caller = requireCallerRole(request, ["office"]);
@@ -42,11 +43,11 @@ export const createManualSlot = onCall(async (request) => {
         date: input.date,
         session: input.session,
         totalCount: input.count,
-        walkInReserved: input.walkInReserved,
+        walkInReserved: 0,
+        checkInCutoffMinutes: 15,
         onlineBookedCount: 0,
         walkInBookedCount: 0,
-        status: "approved",
-        generatedByTemplateId: null,
+        status: "proposed",
         hospitalId: input.hospitalId,
         branchId: input.branchId,
         createdBy: caller.uid,
@@ -62,10 +63,7 @@ export const createManualSlot = onCall(async (request) => {
   await writeWithAudit(db, {
     collection: slotsCollection,
     docId: poolRef.id,
-    data: {
-      totalCount: FieldValue.increment(input.count),
-      walkInReserved: FieldValue.increment(input.walkInReserved),
-    },
+    data: { totalCount: FieldValue.increment(input.count) },
     action: "update",
     before: pool,
     context: { actorId: caller.uid, actorRole: caller.role, hospitalId: input.hospitalId },

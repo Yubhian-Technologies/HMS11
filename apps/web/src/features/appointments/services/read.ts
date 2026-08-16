@@ -57,7 +57,12 @@ export async function listBranchAppointmentsForDates(
   return perDate.flat();
 }
 
-/** Doctor's live queue — consults happen once vitals are recorded (Nurse), status "VITALS_COMPLETED". */
+/**
+ * Doctor's live queue — patients ready to consult ("VITALS_COMPLETED") plus
+ * ones already mid-consult ("CONSULTING", started but not yet submitted —
+ * keeps a resumable consult visible instead of vanishing from the queue the
+ * moment startConsultation fires).
+ */
 export async function listDoctorQueue(
   hospitalId: string,
   branchId: string,
@@ -68,7 +73,7 @@ export async function listDoctorQueue(
     .collection(branchCollection(hospitalId, branchId, "appointments"))
     .where("doctorId", "==", doctorId)
     .where("date", "==", date)
-    .where("status", "==", "VITALS_COMPLETED")
+    .where("status", "in", ["VITALS_COMPLETED", "CONSULTING"])
     .get();
   return snap.docs
     .map((doc) => ({ id: doc.id, ...(doc.data() as Appointment) }))

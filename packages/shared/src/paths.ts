@@ -48,7 +48,7 @@ export function doctorPath(hospitalId: string, branchId: string, uid: string): s
   return `${branchCollection(hospitalId, branchId, "doctors")}/${uid}`;
 }
 
-/** `availabilityTemplates` / `slots`, nested under one doctor. */
+/** `slots`, nested under one doctor. */
 export function doctorCollection(
   hospitalId: string,
   branchId: string,

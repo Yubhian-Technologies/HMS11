@@ -1,11 +1,15 @@
 import { redirect } from "next/navigation";
-import { Badge } from "@/components/ui/badge";
+import { Network } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getSession } from "@/lib/auth/require-role";
 import { CreateDepartmentDialog } from "@/features/departments/components/CreateDepartmentDialog";
 import { EditDepartmentDialog } from "@/features/departments/components/EditDepartmentDialog";
 import { DepartmentStatusToggle } from "@/features/departments/components/DepartmentStatusToggle";
 import { listDepartments } from "@/features/departments/services/read";
+import { PageHeader } from "@/components/page-header";
+import { EmptyState } from "@/components/empty-state";
+import { StatusBadge } from "@/components/status-badge";
+import { ACTIVE_DISABLED_STATUS_META } from "@/lib/status-meta";
 
 export default async function DepartmentsPage() {
   const session = await getSession();
@@ -16,10 +20,7 @@ export default async function DepartmentsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-foreground">Departments</h1>
-        <CreateDepartmentDialog hospitalId={hospitalId} />
-      </div>
+      <PageHeader title="Departments" action={<CreateDepartmentDialog hospitalId={hospitalId} />} />
 
       <Card>
         <CardHeader>
@@ -27,9 +28,10 @@ export default async function DepartmentsPage() {
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
           {departments.length === 0 ? (
-            <p className="py-6 text-center text-sm text-muted-foreground">
-              No departments yet. Doctors need a department before they can be added.
-            </p>
+            <EmptyState
+              icon={Network}
+              message="No departments yet. Doctors need a department before they can be added."
+            />
           ) : (
             departments.map((dept) => (
               <div
@@ -38,7 +40,7 @@ export default async function DepartmentsPage() {
               >
                 <p className="font-medium text-foreground">{dept.name}</p>
                 <div className="flex items-center gap-2">
-                  <Badge variant={dept.status === "active" ? "success" : "destructive"} className="w-20 justify-center">{dept.status}</Badge>
+                  <StatusBadge {...ACTIVE_DISABLED_STATUS_META[dept.status]} />
                   <EditDepartmentDialog hospitalId={hospitalId} departmentId={dept.id} name={dept.name} />
                   <DepartmentStatusToggle hospitalId={hospitalId} departmentId={dept.id} status={dept.status} />
                 </div>

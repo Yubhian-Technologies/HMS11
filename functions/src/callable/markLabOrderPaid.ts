@@ -5,7 +5,7 @@ import { writeWithAudit } from "@hms/shared-server";
 import { requireCallerRole } from "../services/callable-auth";
 import { assertOwnHospital } from "../services/scope-checks";
 
-/** office only, own branch — flips a standalone lab order from "pendingPayment" to "pending". */
+/** office only, own branch — flips a lab order from "pendingPayment" to "pending" (every lab order requires prepayment). */
 export const markLabOrderPaid = onCall(async (request) => {
   const caller = requireCallerRole(request, ["office"]);
   const input = MarkLabOrderPaidRequest.parse(request.data);

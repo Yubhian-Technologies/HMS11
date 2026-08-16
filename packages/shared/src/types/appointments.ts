@@ -1,5 +1,6 @@
 import type { BaseDoc, Timestamp } from "./base";
 import type { Session } from "./scheduling";
+import type { PrescriptionItem } from "./consultations";
 
 /**
  * hospitals/{hospitalId}/branches/{branchId}/appointments/{id}. The center of
@@ -17,23 +18,31 @@ import type { Session } from "./scheduling";
  * a waiting-list entry has no session yet. `bookedVia` records which
  * doctorSlots counter bucket this booking drew from, so cancelling/
  * rescheduling decrements the same one it incremented.
+ *
+ * This status tracks the VISIT lifecycle only — it deliberately does NOT
+ * encode which of the doctor's three consultation branches (Admission /
+ * Prescription / Lab) were opened, since those are non-exclusive and a
+ * single field can't represent "all three at once" without one silently
+ * winning over the others. Branch state lives entirely in its own
+ * collection (`admissions.status`, `prescriptions`/`labOrders.status`),
+ * queried directly by `appointmentId` — never derived from this field.
+ * `submitConsultation` always sets `COMPLETED` once the doctor submits,
+ * regardless of which branches were opened; downstream branch pipelines
+ * (bed assignment, dispensing, lab processing) continue independently.
  */
 export const APPOINTMENT_STATUSES = [
-  /** Created, awaiting Office approval — the pre-existing approval gate (FR-6.3), unchanged by this schema revision. */
+  /** Created, awaiting Office approval (online bookings only — a Reception walk-in starts at BOOKED directly). */
   "PENDING",
-  /** Office-approved; patient-visible and eligible for check-in. */
+  /** Approved (online) or staff-booked in person (walk-in); patient-visible and eligible for check-in. */
   "BOOKED",
   "CHECKED_IN",
   "VITALS_COMPLETED",
+  /** Doctor has opened the chart and started the consultation (startConsultation). */
   "CONSULTING",
-  "LAB_REQUESTED",
-  "PAYMENT_PENDING",
-  "LAB_IN_PROGRESS",
-  "REPORT_UPLOADED",
-  "PRESCRIPTION_READY",
-  "ADMITTED",
-  "DISCHARGED",
+  /** The visit encounter is done — set unconditionally by submitConsultation; branch pipelines continue independently. */
   "COMPLETED",
+  /** Missed its check-in cutoff while still BOOKED — expireStaleAppointments reclaims the held capacity into the walk-in pool. */
+  "EXPIRED",
   "REJECTED",
   "RESCHEDULED",
   "CANCELLED",
@@ -60,7 +69,7 @@ export interface EmbeddedVitals {
 
 export interface EmbeddedCheckIn {
   checkedInAt: Timestamp;
-  checkedInBy: string; // reception uid
+  checkedInBy: string; // office uid — Office validates attendance
   token: string;
 }
 
@@ -69,6 +78,22 @@ export interface EmbeddedConsultationSummary {
   clinicalNotes: string;
   doctorId: string;
   completedAt: Timestamp;
+}
+
+/**
+ * In-progress consult form state, autosaved by the doctor's client so a
+ * refresh/crash mid-consultation doesn't lose unsubmitted work. Cleared
+ * (set null) by submitConsultation on successful submit. Shape mirrors
+ * SubmitConsultationRequest but every field is optional/partial since it's
+ * a draft, not a validated submission.
+ */
+export interface ConsultDraft {
+  diagnosis?: string;
+  clinicalNotes?: string;
+  prescription?: PrescriptionItem[];
+  labTestIds?: string[];
+  admissionRequested?: boolean;
+  savedAt: Timestamp;
 }
 
 export interface Appointment extends BaseDoc {
@@ -84,6 +109,7 @@ export interface Appointment extends BaseDoc {
   status: AppointmentStatus;
   checkIn: EmbeddedCheckIn | null;
   vitals: EmbeddedVitals | null;
+  consultDraft: ConsultDraft | null;
   consultationSummary: EmbeddedConsultationSummary | null;
   waitingListPosition: number | null;
 }

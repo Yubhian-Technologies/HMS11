@@ -1,21 +1,8 @@
 import "server-only";
 import { getAdminDb } from "@/server/firebase-admin";
-import { doctorCollection, type DoctorAvailabilityTemplate, type DoctorSlot } from "@hms/shared";
+import { doctorCollection, type DoctorSlot } from "@hms/shared";
 
-export type TemplateRecord = DoctorAvailabilityTemplate & { id: string };
 export type SlotRecord = DoctorSlot & { id: string };
-
-export async function listTemplatesForDoctor(
-  hospitalId: string,
-  branchId: string,
-  doctorId: string,
-): Promise<TemplateRecord[]> {
-  const snap = await getAdminDb()
-    .collection(doctorCollection(hospitalId, branchId, doctorId, "availabilityTemplates"))
-    .orderBy("weekday", "asc")
-    .get();
-  return snap.docs.map((doc) => ({ id: doc.id, ...(doc.data() as DoctorAvailabilityTemplate) }));
-}
 
 const SESSION_ORDER: Record<string, number> = { morning: 0, afternoon: 1 };
 

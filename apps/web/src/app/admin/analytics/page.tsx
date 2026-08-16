@@ -1,7 +1,11 @@
 import { redirect } from "next/navigation";
+import { BedDouble, CalendarCheck, Receipt, Stethoscope } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getSession } from "@/lib/auth/require-role";
 import { getHospitalAnalytics } from "@/features/analytics/services/read";
+import { PageHeader } from "@/components/page-header";
+import { EmptyState } from "@/components/empty-state";
+import { StatTile, StatTileRow } from "@/components/stat-tile";
 
 function pct(value: number | null): string {
   return value === null ? "—" : `${Math.round(value * 100)}%`;
@@ -15,38 +19,14 @@ export default async function AdminAnalyticsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-xl font-semibold text-foreground">Analytics</h1>
+      <PageHeader title="Analytics" />
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Appointments (7d)</CardTitle>
-          </CardHeader>
-          <CardContent className="text-3xl font-semibold text-foreground">{analytics.appointments7d}</CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Revenue (7d)</CardTitle>
-          </CardHeader>
-          <CardContent className="text-3xl font-semibold text-foreground">{analytics.revenue7d}</CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Doctor utilization</CardTitle>
-          </CardHeader>
-          <CardContent className="text-3xl font-semibold text-foreground">
-            {pct(analytics.doctorUtilizationRate)}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Bed occupancy</CardTitle>
-          </CardHeader>
-          <CardContent className="text-3xl font-semibold text-foreground">
-            {pct(analytics.bedOccupancyRate)}
-          </CardContent>
-        </Card>
-      </div>
+      <StatTileRow>
+        <StatTile icon={CalendarCheck} label="Appointments (7d)" value={analytics.appointments7d} tone="info" />
+        <StatTile icon={Receipt} label="Revenue (7d)" value={analytics.revenue7d} tone="success" />
+        <StatTile icon={Stethoscope} label="Doctor Utilization" value={pct(analytics.doctorUtilizationRate)} tone="info" />
+        <StatTile icon={BedDouble} label="Bed Occupancy" value={pct(analytics.bedOccupancyRate)} tone="info" />
+      </StatTileRow>
 
       <Card>
         <CardHeader>
@@ -54,9 +34,7 @@ export default async function AdminAnalyticsPage() {
         </CardHeader>
         <CardContent>
           {analytics.trend.length === 0 ? (
-            <p className="py-6 text-center text-sm text-muted-foreground">
-              No data yet — rollUpDailyStats runs nightly.
-            </p>
+            <EmptyState icon={CalendarCheck} message="No data yet — rollUpDailyStats runs nightly." />
           ) : (
             <div className="flex flex-col gap-2">
               {analytics.trend.map((point) => (

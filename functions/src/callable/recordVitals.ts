@@ -12,7 +12,10 @@ import { assertOwnHospital } from "../services/scope-checks";
  * instead of a standalone `vitals` document; "Send to Doctor" is this same
  * call, not a separate step — the doctor's own real-time listener on this
  * same appointment document sees the new vitals + status the instant this
- * commits (no separate "push to doctor" step).
+ * commits (no separate "push to doctor" step). Runs inside a transaction so
+ * two concurrent submissions for the same appointment (double-click, or two
+ * nurse sessions) can't both pass the CHECKED_IN guard and silently
+ * overwrite each other's vitals.
  */
 export const recordVitals = onCall(async (request) => {
   const caller = requireCallerRole(request, ["nurse"]);
@@ -27,51 +30,55 @@ export const recordVitals = onCall(async (request) => {
   const apptRef = db
     .collection(branchCollection(input.hospitalId, input.branchId, "appointments"))
     .doc(input.appointmentId);
-  const apptSnap = await apptRef.get();
-  const appt = apptSnap.data();
-  if (!apptSnap.exists) {
-    throw new HttpsError("not-found", "Appointment not found.");
-  }
-  if (appt?.status !== "CHECKED_IN") {
-    throw new HttpsError("failed-precondition", "The patient must be checked in first.");
-  }
 
   const heightM = input.heightCm / 100;
   const bmi = Math.round((input.weightKg / (heightM * heightM)) * 10) / 10;
-  const now = FieldValue.serverTimestamp();
 
-  await apptRef.update({
-    vitals: {
-      bloodPressure: input.bloodPressure,
-      pulse: input.pulse,
-      temperatureC: input.temperatureC,
-      weightKg: input.weightKg,
-      heightCm: input.heightCm,
-      bmi,
-      spo2: input.spo2,
-      sugarMgDl: input.sugarMgDl ?? null,
-      respiratoryRate: input.respiratoryRate ?? null,
-      chiefComplaint: input.chiefComplaint,
-      notes: input.notes,
-      recordedBy: caller.uid,
-      recordedAt: now,
-      sentToDoctorAt: now,
-    },
-    status: "VITALS_COMPLETED",
-    updatedAt: now,
-  });
+  await db.runTransaction(async (tx) => {
+    const apptSnap = await tx.get(apptRef);
+    const appt = apptSnap.data();
+    if (!apptSnap.exists) {
+      throw new HttpsError("not-found", "Appointment not found.");
+    }
+    if (appt?.status !== "CHECKED_IN") {
+      throw new HttpsError("failed-precondition", "The patient must be checked in first.");
+    }
 
-  const auditRef = db.collection("auditLogs").doc();
-  await auditRef.set({
-    hospitalId: input.hospitalId,
-    actorId: caller.uid,
-    actorRole: caller.role,
-    action: "update",
-    entityType: "appointments",
-    entityId: input.appointmentId,
-    before: { status: "CHECKED_IN" },
-    after: { status: "VITALS_COMPLETED" },
-    createdAt: now,
+    const now = FieldValue.serverTimestamp();
+
+    tx.update(apptRef, {
+      vitals: {
+        bloodPressure: input.bloodPressure,
+        pulse: input.pulse,
+        temperatureC: input.temperatureC,
+        weightKg: input.weightKg,
+        heightCm: input.heightCm,
+        bmi,
+        spo2: input.spo2,
+        sugarMgDl: input.sugarMgDl ?? null,
+        respiratoryRate: input.respiratoryRate ?? null,
+        chiefComplaint: input.chiefComplaint,
+        notes: input.notes,
+        recordedBy: caller.uid,
+        recordedAt: now,
+        sentToDoctorAt: now,
+      },
+      status: "VITALS_COMPLETED",
+      updatedAt: now,
+    });
+
+    const auditRef = db.collection("auditLogs").doc();
+    tx.set(auditRef, {
+      hospitalId: input.hospitalId,
+      actorId: caller.uid,
+      actorRole: caller.role,
+      action: "update",
+      entityType: "appointments",
+      entityId: input.appointmentId,
+      before: { status: "CHECKED_IN" },
+      after: { status: "VITALS_COMPLETED" },
+      createdAt: now,
+    });
   });
 
   return RecordVitalsResponse.parse({ appointmentId: input.appointmentId, status: "VITALS_COMPLETED" });

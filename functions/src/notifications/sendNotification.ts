@@ -11,7 +11,7 @@ export type NotificationType =
   | "followUpReminder"
   | "emergencyUpdate"
   | "medicineExpiryAlert"
-  | "availabilityRequest";
+  | "slotProposal";
 
 export interface SendNotificationParams {
   userId: string;

@@ -16,12 +16,20 @@ import { assertOwnHospital } from "../services/scope-checks";
  * append-only history chain, a deliberate trade-off accepted for the
  * real-time single-document benefits (see that doc section).
  *
- * Scope note: this pass sets the appointment's coarse status
- * (LAB_REQUESTED / PRESCRIPTION_READY / COMPLETED) but does not implement a
- * "doctor resumes after lab report" second consultation step — the fine-
- * grained lab pipeline continues to be tracked independently on
- * `labOrders.status` (advanceLabOrderStatus/uploadLabReport), same as
- * before this migration. See CLAUDE.md changelog.
+ * The appointment's `status` tracks the VISIT lifecycle only — it always
+ * becomes "COMPLETED" here, regardless of which of the three branches
+ * (Admission/Prescription/Lab) were opened, since they're non-exclusive and
+ * a single field can't represent "all three at once" without one silently
+ * winning over the others. Each branch's own state (admissions.status,
+ * labOrders.status, prescription dispensing) is tracked independently in
+ * its own collection from here on — the fine-grained lab pipeline is not
+ * re-entered through a second consultation step; it's tracked on
+ * `labOrders.status` (advanceLabOrderStatus/uploadLabReport).
+ *
+ * This is the ONLY place Admission/Prescription/Lab records originate —
+ * the earlier standalone assignLabOrder/assignMedicineOrder creation
+ * endpoints were retired so a doctor can't create two records for the same
+ * visit through two different paths.
  */
 export const submitConsultation = onCall(async (request) => {
   const caller = requireCallerRole(request, ["doctor"]);
@@ -43,8 +51,8 @@ export const submitConsultation = onCall(async (request) => {
   if (appt?.doctorId !== caller.uid) {
     throw new HttpsError("permission-denied", "You can only consult on your own appointments.");
   }
-  if (appt?.status !== "VITALS_COMPLETED") {
-    throw new HttpsError("failed-precondition", "Vitals must be recorded before consultation.");
+  if (appt?.status !== "CONSULTING") {
+    throw new HttpsError("failed-precondition", "Start the consultation before submitting it.");
   }
 
   const labTests = input.labTestIds
@@ -90,8 +98,6 @@ export const submitConsultation = onCall(async (request) => {
     ? db.collection(branchCollection(input.hospitalId, input.branchId, "referrals")).doc()
     : null;
 
-  const finalStatus = labTests.length > 0 ? "LAB_REQUESTED" : input.admissionRequested ? "PRESCRIPTION_READY" : "COMPLETED";
-
   await db.runTransaction(async (tx) => {
     const now = FieldValue.serverTimestamp();
     const base = {
@@ -110,7 +116,8 @@ export const submitConsultation = onCall(async (request) => {
         doctorId: caller.uid,
         completedAt: now,
       },
-      status: finalStatus,
+      consultDraft: null,
+      status: "COMPLETED",
       updatedAt: now,
     });
 
@@ -126,6 +133,9 @@ export const submitConsultation = onCall(async (request) => {
     }
 
     labTests.forEach((test, i) => {
+      // Every lab order requires prepayment, regardless of origin — starts
+      // "pendingPayment"; Office's markLabOrderPaid flips it to "pending"
+      // before it enters the processing pipeline.
       tx.set(labOrderRefs[i]!, {
         ...base,
         appointmentId: input.appointmentId,
@@ -133,7 +143,7 @@ export const submitConsultation = onCall(async (request) => {
         doctorId: caller.uid,
         testId: test.testId,
         testName: test.name,
-        status: "pending",
+        status: "pendingPayment",
       });
     });
 
@@ -195,9 +205,9 @@ export const submitConsultation = onCall(async (request) => {
       action: "update",
       entityType: "appointments",
       entityId: input.appointmentId,
-      before: { status: "VITALS_COMPLETED" },
+      before: { status: "CONSULTING" },
       after: {
-        status: finalStatus,
+        status: "COMPLETED",
         diagnosis: input.diagnosis,
         hasPrescription: Boolean(prescriptionRef),
         labOrderCount: labOrderRefs.length,

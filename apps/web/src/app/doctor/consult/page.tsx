@@ -123,6 +123,20 @@ export default async function ConsultPage({
         labTests={labTests.map((t) => ({ id: t.id, name: t.name, price: t.price }))}
         departments={departments.map((d) => ({ id: d.id, name: d.name }))}
         doctors={doctors.filter((d) => d.id !== doctorId).map((d) => ({ id: d.id, name: d.name }))}
+        initialDraft={
+          appointment.consultDraft
+            ? {
+                diagnosis: appointment.consultDraft.diagnosis,
+                clinicalNotes: appointment.consultDraft.clinicalNotes,
+                prescription: appointment.consultDraft.prescription?.map((item) => ({
+                  ...item,
+                  durationDays: String(item.durationDays),
+                })),
+                labTestIds: appointment.consultDraft.labTestIds,
+                admissionRequested: appointment.consultDraft.admissionRequested,
+              }
+            : null
+        }
       />
     </div>
   );

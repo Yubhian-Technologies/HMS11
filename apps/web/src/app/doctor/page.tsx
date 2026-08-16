@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { getSession } from "@/lib/auth/require-role";
 import { todayIsoClient } from "@/lib/rolling-window";
 import { listDoctorQueue } from "@/features/appointments/services/read";
+import { StartConsultationButton } from "@/features/appointments/components/StartConsultationButton";
 import { VitalsLiveRefresh } from "@/features/reception/components/VitalsLiveRefresh";
 
 export default async function DoctorQueuePage() {
@@ -18,7 +19,7 @@ export default async function DoctorQueuePage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <VitalsLiveRefresh hospitalId={hospitalId} branchId={branchId} />
+      <VitalsLiveRefresh hospitalId={hospitalId} branchId={branchId} doctorId={doctorId} />
       <h1 className="text-xl font-semibold text-foreground">Queue — Today</h1>
       <Card>
         <CardContent className="flex flex-col gap-3 pt-6">
@@ -35,6 +36,7 @@ export default async function DoctorQueuePage() {
                     {appt.patientName}{" "}
                     {appt.type === "emergency" ? <Badge variant="destructive">EMERGENCY</Badge> : null}
                     {appt.checkIn?.token ? <Badge variant="default">#{appt.checkIn.token}</Badge> : null}
+                    {appt.status === "CONSULTING" ? <Badge variant="secondary">In Consultation</Badge> : null}
                   </p>
                   {appt.vitals ? (
                     <p className="text-muted-foreground">
@@ -57,20 +59,32 @@ export default async function DoctorQueuePage() {
                   <Button
                     size="sm"
                     variant="outline"
+                    render={<Link href={`/doctor/admissions`} />}
+                  >
+                    Admissions
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
                     render={<Link href={`/doctor/prescriptions?appointmentId=${appt.id}`} />}
                   >
                     Prescriptions
                   </Button>
-                  <Button size="sm" render={<Link href={`/doctor/labs?appointmentId=${appt.id}`} />}>
+                  <Button size="sm" variant="outline" render={<Link href={`/doctor/labs?appointmentId=${appt.id}`} />}>
                     Labs
                   </Button>
-                  <Button
-                    size="sm"
-                    disabled={!appt.vitals}
-                    render={<Link href={`/doctor/consult?appointmentId=${appt.id}`} />}
-                  >
-                    {appt.vitals ? "Start Consultation" : "Awaiting vitals"}
-                  </Button>
+                  {appt.status === "CONSULTING" ? (
+                    <Button size="sm" render={<Link href={`/doctor/consult?appointmentId=${appt.id}`} />}>
+                      Resume Consultation
+                    </Button>
+                  ) : (
+                    <StartConsultationButton
+                      hospitalId={hospitalId}
+                      branchId={branchId}
+                      appointmentId={appt.id}
+                      hasVitals={Boolean(appt.vitals)}
+                    />
+                  )}
                 </div>
               </div>
             ))

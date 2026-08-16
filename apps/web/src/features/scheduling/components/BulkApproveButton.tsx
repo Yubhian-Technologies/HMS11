@@ -21,18 +21,18 @@ export function BulkApproveButton({
   function handleClick() {
     startTransition(async () => {
       try {
-        const { approvedCount } = await bulkApproveSlots({ hospitalId, doctorId, date });
-        toast.success(approvedCount > 0 ? `Approved ${approvedCount} slots.` : "Nothing pending.");
+        const { confirmedCount } = await bulkApproveSlots({ hospitalId, doctorId, date });
+        toast.success(confirmedCount > 0 ? `Confirmed ${confirmedCount} slots.` : "Nothing to confirm.");
         router.refresh();
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Failed to bulk-approve.");
+        toast.error(err instanceof Error ? err.message : "Failed to confirm all.");
       }
     });
   }
 
   return (
     <Button size="sm" variant="outline" disabled={isPending} onClick={handleClick}>
-      {isPending ? "Approving…" : "Bulk-approve this day"}
+      {isPending ? "Confirming…" : "Confirm all proposals"}
     </Button>
   );
 }

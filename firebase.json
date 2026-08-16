@@ -8,9 +8,9 @@
   },
   "functions": [
     {
-      "source": ".deploy/functions",
+      "source": "functions/.deploy",
       "codebase": "default",
-      "predeploy": ["node scripts/prepare-functions-deploy.mjs"]
+      "predeploy": ["node functions/scripts/prepare-functions-deploy.mjs"]
     }
   ],
   "emulators": {

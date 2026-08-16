@@ -7,9 +7,20 @@ import { listStaffByRole, listDoctorProfiles } from "@/features/staff/services/r
 import { listDepartments } from "@/features/departments/services/read";
 import { listSlotsForBranchInRange } from "@/features/scheduling/services/read";
 import { CreateManualSlotDialog } from "@/features/scheduling/components/CreateManualSlotDialog";
+import { BulkProposeCapacityDialog } from "@/features/scheduling/components/BulkProposeCapacityDialog";
 import { BlockUnblockButton } from "@/features/scheduling/components/BlockUnblockButton";
+import { SlotPublishButton } from "@/features/scheduling/components/SlotPublishButton";
+import type { SlotRecord } from "@/features/scheduling/services/read";
 
 const SESSION_LABEL: Record<string, string> = { morning: "Morning", afternoon: "Afternoon" };
+
+const SLOT_STATUS_BADGE: Record<SlotRecord["status"], { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
+  proposed: { label: "Proposed", variant: "outline" },
+  doctorReviewed: { label: "Awaiting your split & release", variant: "secondary" },
+  approved: { label: "Approved", variant: "default" },
+  rejected: { label: "Rejected", variant: "destructive" },
+  blocked: { label: "Blocked", variant: "destructive" },
+};
 
 export default async function OfficeSlotsPage() {
   const session = await getSession();
@@ -31,16 +42,28 @@ export default async function OfficeSlotsPage() {
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold text-foreground">Slot Approval</h1>
-        <CreateManualSlotDialog
-          hospitalId={hospitalId}
-          branchId={branchId}
-          departments={departments.filter((dept) => dept.status === "active").map((d) => ({ id: d.id, name: d.name }))}
-          doctors={doctors.map((d) => ({
-            id: d.id,
-            name: d.name,
-            departmentId: departmentIdByDoctor.get(d.id) ?? "",
-          }))}
-        />
+        <div className="flex items-center gap-2">
+          <BulkProposeCapacityDialog
+            hospitalId={hospitalId}
+            branchId={branchId}
+            departments={departments.filter((dept) => dept.status === "active").map((d) => ({ id: d.id, name: d.name }))}
+            doctors={doctors.map((d) => ({
+              id: d.id,
+              name: d.name,
+              departmentId: departmentIdByDoctor.get(d.id) ?? "",
+            }))}
+          />
+          <CreateManualSlotDialog
+            hospitalId={hospitalId}
+            branchId={branchId}
+            departments={departments.filter((dept) => dept.status === "active").map((d) => ({ id: d.id, name: d.name }))}
+            doctors={doctors.map((d) => ({
+              id: d.id,
+              name: d.name,
+              departmentId: departmentIdByDoctor.get(d.id) ?? "",
+            }))}
+          />
+        </div>
       </div>
 
       {dates.map((date, i) => {
@@ -75,16 +98,28 @@ export default async function OfficeSlotsPage() {
                             {slot.totalCount} booked
                             {slot.walkInReserved > 0 ? ` (${slot.walkInReserved} for walk-ins)` : ""}
                           </span>
-                          <Badge variant={slot.status === "approved" ? "default" : "destructive"}>
-                            {slot.status}
+                          <Badge variant={SLOT_STATUS_BADGE[slot.status].variant}>
+                            {SLOT_STATUS_BADGE[slot.status].label}
                           </Badge>
-                          <BlockUnblockButton
-                            hospitalId={hospitalId}
-                            branchId={branchId}
-                            doctorId={doctorId}
-                            slotId={slot.id}
-                            status={slot.status}
-                          />
+                          {slot.status === "proposed" || slot.status === "doctorReviewed" ? (
+                            <SlotPublishButton
+                              hospitalId={hospitalId}
+                              branchId={branchId}
+                              doctorId={doctorId}
+                              slotId={slot.id}
+                              status={slot.status}
+                              totalCount={slot.totalCount}
+                            />
+                          ) : null}
+                          {slot.status === "approved" || slot.status === "blocked" ? (
+                            <BlockUnblockButton
+                              hospitalId={hospitalId}
+                              branchId={branchId}
+                              doctorId={doctorId}
+                              slotId={slot.id}
+                              status={slot.status}
+                            />
+                          ) : null}
                         </div>
                       ))}
                     </div>

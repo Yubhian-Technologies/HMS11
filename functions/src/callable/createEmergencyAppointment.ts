@@ -52,6 +52,7 @@ export const createEmergencyAppointment = onCall(async (request) => {
       checkIn: null,
       vitals: null,
       consultationSummary: null,
+      consultDraft: null,
       status: "BOOKED",
       waitingListPosition: null,
       hospitalId: input.hospitalId,

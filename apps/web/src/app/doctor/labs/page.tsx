@@ -2,25 +2,22 @@ import { redirect } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getSession } from "@/lib/auth/require-role";
-import { todayIsoClient } from "@/lib/rolling-window";
-import { listDoctorQueue } from "@/features/appointments/services/read";
-import { listLabTests } from "@/features/lab-tests/services/read";
 import { listLabOrdersForDoctor, getLabReportForOrder } from "@/features/lab/services/read";
-import { AssignLabOrderForm } from "@/features/lab/components/AssignLabOrderForm";
 
+/**
+ * Read-only — lab orders originate only from the consult flow
+ * (submitConsultation) now, not from a standalone "assign a test" action
+ * here, so a doctor can't create two lab orders for the same visit through
+ * two different paths. This page is where a doctor checks status/results.
+ */
 export default async function DoctorLabsPage() {
   const session = await getSession();
   if (!session?.hospitalId || !session.branchId) redirect("/login");
   const { hospitalId, branchId, uid: doctorId } = session;
 
-  const today = todayIsoClient();
-  const [queue, labTests, labOrders] = await Promise.all([
-    listDoctorQueue(hospitalId, branchId, doctorId, today),
-    listLabTests(hospitalId, branchId),
-    // Isolated: a missing/pending composite index on this newer collection
-    // must degrade this one section, not crash the whole page.
-    listLabOrdersForDoctor(hospitalId, branchId, doctorId).catch(() => []),
-  ]);
+  // Isolated: a missing/pending composite index on this newer collection
+  // must degrade this section, not crash the whole page.
+  const labOrders = await listLabOrdersForDoctor(hospitalId, branchId, doctorId).catch(() => []);
 
   const ordersWithReports = await Promise.all(
     labOrders.map(async (order) => ({
@@ -29,24 +26,13 @@ export default async function DoctorLabsPage() {
     })),
   );
 
-  const patients = Array.from(new Map(queue.map((a) => [a.id, { patientId: a.patientId, name: a.patientName }])).entries()).map(
-    ([appointmentId, { patientId, name }]) => ({ appointmentId, patientId, name }),
-  );
-
   return (
     <div className="flex flex-col gap-6">
       <h1 className="text-xl font-semibold text-foreground">Labs</h1>
 
-      <AssignLabOrderForm
-        hospitalId={hospitalId}
-        branchId={branchId}
-        patients={patients}
-        labTests={labTests.filter((t) => t.status === "active").map((t) => ({ id: t.id, name: t.name, price: t.price }))}
-      />
-
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Orders you&apos;ve assigned</CardTitle>
+          <CardTitle className="text-base">Your Lab Orders</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
           {ordersWithReports.length === 0 ? (

@@ -10,6 +10,7 @@ import { listBranchAppointmentsForDates } from "@/features/appointments/services
 import { listWalkInPatients } from "@/features/patients/services/read";
 import { listStaffByRole, listDoctorProfiles } from "@/features/staff/services/read";
 import { AppointmentActionButtons } from "@/features/appointments/components/AppointmentActionButtons";
+import { CheckInButton } from "@/features/appointments/components/CheckInButton";
 import { CreateEmergencyDialog } from "@/features/appointments/components/CreateEmergencyDialog";
 
 const SESSION_LABEL: Record<string, string> = { morning: "Morning", afternoon: "Afternoon" };
@@ -61,6 +62,9 @@ export default async function OfficeAppointmentsPage({
             appointmentId={appt.id}
             status={appt.status}
           />
+          {appt.status === "BOOKED" ? (
+            <CheckInButton hospitalId={hospitalId} branchId={branchId} appointmentId={appt.id} />
+          ) : null}
           {appt.status === "BOOKED" && appt.session ? (
             <Button
               size="sm"

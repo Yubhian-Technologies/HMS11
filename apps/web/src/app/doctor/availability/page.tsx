@@ -3,25 +3,20 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getSession } from "@/lib/auth/require-role";
 import { rollingWindowDates, formatDateLabel } from "@/lib/rolling-window";
-import { listSlotsForDoctorInRange, listTemplatesForDoctor } from "@/features/scheduling/services/read";
-import { CreateTemplateDialog } from "@/features/scheduling/components/CreateTemplateDialog";
-import { TemplateStatusToggle } from "@/features/scheduling/components/TemplateStatusToggle";
-import { SlotApproveRejectButtons } from "@/features/scheduling/components/SlotApproveRejectButtons";
+import { listSlotsForDoctorInRange } from "@/features/scheduling/services/read";
 import { BulkApproveButton } from "@/features/scheduling/components/BulkApproveButton";
-import { listRequestsForDoctor } from "@/features/availability-requests/services/read";
-import { RespondAvailabilityDialog } from "@/features/availability-requests/components/RespondAvailabilityDialog";
-
-const WEEKDAY_LABEL: Record<string, string> = {
-  monday: "Monday",
-  tuesday: "Tuesday",
-  wednesday: "Wednesday",
-  thursday: "Thursday",
-  friday: "Friday",
-  saturday: "Saturday",
-  sunday: "Sunday",
-};
+import { SubmitSlotProposalDialog } from "@/features/scheduling/components/SubmitSlotProposalDialog";
+import type { SlotRecord } from "@/features/scheduling/services/read";
 
 const SESSION_LABEL: Record<string, string> = { morning: "Morning", afternoon: "Afternoon" };
+
+const SLOT_STATUS_BADGE: Record<SlotRecord["status"], { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
+  proposed: { label: "Proposed by Office", variant: "outline" },
+  doctorReviewed: { label: "Sent to Office", variant: "secondary" },
+  approved: { label: "Approved", variant: "default" },
+  rejected: { label: "Rejected", variant: "destructive" },
+  blocked: { label: "Blocked", variant: "destructive" },
+};
 
 export default async function DoctorAvailabilityPage() {
   const session = await getSession();
@@ -29,109 +24,58 @@ export default async function DoctorAvailabilityPage() {
   const { uid: doctorId, hospitalId, branchId } = session;
 
   const dates = rollingWindowDates();
-  const [templates, slots, availabilityRequests] = await Promise.all([
-    listTemplatesForDoctor(hospitalId, branchId, doctorId),
-    listSlotsForDoctorInRange(hospitalId, branchId, doctorId, dates),
-    // Isolated: this is a newer collection than templates/slots — if its
-    // composite index hasn't been deployed yet, that must not crash the
-    // whole page and take the (working) template/slot sections down with it.
-    listRequestsForDoctor(hospitalId, branchId, doctorId).catch(() => []),
-  ]);
+  const slots = await listSlotsForDoctorInRange(hospitalId, branchId, doctorId, dates);
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-foreground">My Availability</h1>
-        <CreateTemplateDialog hospitalId={hospitalId} branchId={branchId} doctorId={doctorId} />
-      </div>
+      <h1 className="text-xl font-semibold text-foreground">My Availability</h1>
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Availability Requests from Office</CardTitle>
+          <CardTitle className="text-base">Slot Proposals from Office</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
-          {availabilityRequests.length === 0 ? (
-            <p className="py-6 text-center text-sm text-muted-foreground">No requests from Office yet.</p>
-          ) : (
-            availabilityRequests.map((req) => (
-              <div
-                key={req.id}
-                className="flex items-center justify-between rounded-md border border-border p-3 text-sm"
-              >
-                <div>
-                  <p className="font-medium text-foreground">{req.date}</p>
-                  <p className="text-muted-foreground">
-                    Requested {req.morningRequested} morning / {req.afternoonRequested} afternoon
-                  </p>
-                  {req.status === "responded" ? (
-                    <p className="text-foreground">
-                      You confirmed {req.morningAvailable} morning / {req.afternoonAvailable} afternoon —{" "}
-                      {req.isAvailable ? "Available" : "Not available"}
-                    </p>
-                  ) : null}
-                </div>
-                <div className="flex items-center gap-2">
-                  <Badge variant={req.status === "responded" ? "default" : "destructive"}>{req.status}</Badge>
-                  {req.status === "pending" ? (
-                    <RespondAvailabilityDialog
-                      hospitalId={hospitalId}
-                      requestId={req.id}
-                      morningRequested={req.morningRequested}
-                      afternoonRequested={req.afternoonRequested}
-                    />
-                  ) : null}
-                </div>
-              </div>
-            ))
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Weekly Template</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-3">
-          {templates.length === 0 ? (
+          {slots.filter((s) => s.status === "proposed").length === 0 ? (
             <p className="py-6 text-center text-sm text-muted-foreground">
-              No recurring availability set yet.
+              No slot proposals from Office yet.
             </p>
           ) : (
-            templates.map((tpl) => (
-              <div
-                key={tpl.id}
-                className="flex items-center justify-between rounded-md border border-border p-3 text-sm"
-              >
-                <p className="font-medium text-foreground">
-                  {WEEKDAY_LABEL[tpl.weekday]} · {tpl.morningSlots} morning
-                  {tpl.morningWalkInReserved > 0 ? ` (${tpl.morningWalkInReserved} for walk-ins)` : ""} /{" "}
-                  {tpl.afternoonSlots} afternoon
-                  {tpl.afternoonWalkInReserved > 0 ? ` (${tpl.afternoonWalkInReserved} for walk-ins)` : ""}
-                </p>
-                <div className="flex items-center gap-2">
-                  <Badge variant={tpl.status === "active" ? "success" : "destructive"} className="w-20 justify-center">{tpl.status}</Badge>
-                  <TemplateStatusToggle
+            slots
+              .filter((s) => s.status === "proposed")
+              .map((slot) => (
+                <div
+                  key={slot.id}
+                  className="flex items-center justify-between rounded-md border border-border p-3 text-sm"
+                >
+                  <div>
+                    <p className="font-medium text-foreground">
+                      {slot.date} · {SESSION_LABEL[slot.session]}
+                    </p>
+                    <p className="text-muted-foreground">{slot.totalCount} slots proposed</p>
+                  </div>
+                  <SubmitSlotProposalDialog
                     hospitalId={hospitalId}
                     branchId={branchId}
                     doctorId={doctorId}
-                    templateId={tpl.id}
-                    status={tpl.status}
+                    slotId={slot.id}
+                    date={slot.date}
+                    session={slot.session}
+                    totalCount={slot.totalCount}
                   />
                 </div>
-              </div>
-            ))
+              ))
           )}
         </CardContent>
       </Card>
 
       {dates.map((date, i) => {
         const daySlots = slots.filter((s) => s.date === date);
-        const pendingCount = daySlots.filter((s) => s.status === "pendingApproval").length;
+        const proposedCount = daySlots.filter((s) => s.status === "proposed").length;
         return (
           <Card key={date}>
             <CardHeader className="flex-row items-center justify-between">
               <CardTitle className="text-base">{formatDateLabel(date, i)}</CardTitle>
-              {pendingCount > 0 ? (
+              {proposedCount > 0 ? (
                 <BulkApproveButton hospitalId={hospitalId} doctorId={doctorId} date={date} />
               ) : null}
             </CardHeader>
@@ -148,17 +92,11 @@ export default async function DoctorAvailabilityPage() {
                       <span className="text-foreground">
                         {SESSION_LABEL[slot.session]} · {slot.onlineBookedCount + slot.walkInBookedCount}/
                         {slot.totalCount} booked
-                        {slot.walkInReserved > 0 ? ` (${slot.walkInReserved} for walk-ins)` : ""}
+                        {slot.status === "approved" && slot.walkInReserved > 0
+                          ? ` (${slot.walkInReserved} for walk-ins)`
+                          : ""}
                       </span>
-                      <Badge variant={slot.status === "approved" ? "default" : "destructive"}>{slot.status}</Badge>
-                      {slot.status === "pendingApproval" ? (
-                        <SlotApproveRejectButtons
-                          hospitalId={hospitalId}
-                          branchId={branchId}
-                          doctorId={doctorId}
-                          slotId={slot.id}
-                        />
-                      ) : null}
+                      <Badge variant={SLOT_STATUS_BADGE[slot.status].variant}>{SLOT_STATUS_BADGE[slot.status].label}</Badge>
                     </div>
                   ))}
                 </div>

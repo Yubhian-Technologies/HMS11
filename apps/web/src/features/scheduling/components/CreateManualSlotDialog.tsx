@@ -39,7 +39,6 @@ export function CreateManualSlotDialog({
     date: "",
     session: "" as "" | "morning" | "afternoon",
     count: "1",
-    walkInReserved: "0",
   });
   const [submitting, setSubmitting] = useState(false);
 
@@ -62,11 +61,10 @@ export function CreateManualSlotDialog({
         date: form.date,
         session: form.session,
         count: Number(form.count),
-        walkInReserved: Number(form.walkInReserved),
       });
       toast.success("Slots added.");
       setDepartmentId("");
-      setForm({ doctorId: "", date: "", session: "", count: "1", walkInReserved: "0" });
+      setForm({ doctorId: "", date: "", session: "", count: "1" });
       setOpen(false);
       router.refresh();
     } catch (err) {
@@ -78,12 +76,15 @@ export function CreateManualSlotDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={<Button size="sm" />}>New One-off Slots</DialogTrigger>
+      <DialogTrigger render={<Button size="sm" />}>New Slot Proposal</DialogTrigger>
       <DialogContent>
         <form onSubmit={handleSubmit}>
           <DialogHeader>
-            <DialogTitle>Add One-off Slots</DialogTitle>
-            <DialogDescription>FR-4.5 — goes straight to Approved, outside the doctor&apos;s template.</DialogDescription>
+            <DialogTitle>Propose Slot Capacity</DialogTitle>
+            <DialogDescription>
+              Creates a slot proposal for the doctor to confirm. It becomes bookable only after the doctor
+              sends the confirmed total back and you split it into online/walk-in and release it.
+            </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid gap-1.5">
@@ -151,28 +152,16 @@ export function CreateManualSlotDialog({
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-1.5">
-                <Label htmlFor="manual-count">Slot count</Label>
-                <Input
-                  id="manual-count"
-                  type="number"
-                  min="1"
-                  required
-                  value={form.count}
-                  onChange={(e) => setForm((f) => ({ ...f, count: e.target.value }))}
-                />
-              </div>
-              <div className="grid gap-1.5">
-                <Label htmlFor="manual-walkin">Reserve for walk-ins</Label>
-                <Input
-                  id="manual-walkin"
-                  type="number"
-                  min="0"
-                  value={form.walkInReserved}
-                  onChange={(e) => setForm((f) => ({ ...f, walkInReserved: e.target.value }))}
-                />
-              </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="manual-count">Slot count</Label>
+              <Input
+                id="manual-count"
+                type="number"
+                min="1"
+                required
+                value={form.count}
+                onChange={(e) => setForm((f) => ({ ...f, count: e.target.value }))}
+              />
             </div>
           </div>
           <DialogFooter>

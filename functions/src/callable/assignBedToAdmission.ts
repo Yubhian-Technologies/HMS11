@@ -5,20 +5,17 @@ import { requireCallerRole } from "../services/callable-auth";
 import { assertOwnHospital } from "../services/scope-checks";
 
 /**
- * office OR doctor, own branch — FR-9.5/FR-12.2 both say the Doctor can
- * assign a bed at admission time, while docs/13-cloud-functions.md's
- * function table separately gives Office a bed-availability/room-assignment
- * queue; both are legitimate entry points to the same action, so both
- * roles are allowed here. A doctor may only assign a bed to their own
- * patient's admission request; Office (running the room-assignment queue
- * for the whole branch) isn't limited to any one doctor. A doctor's
- * "pendingBedAssignment" admission request only becomes "admitted" here —
- * the caller checks the bed is actually available and links it, in the same
- * transaction that marks the bed occupied (docs/13-cloud-functions.md
- * §13.4: the two must commit together).
+ * office only, own branch — Office checks bed availability and allots the
+ * bed (Phase D Branch 1: bed allocation is Office's job, not the doctor's;
+ * the doctor only flags that a room is needed via submitConsultation's
+ * `admissionRequested`). A doctor's "pendingBedAssignment" admission
+ * request only becomes "admitted" here — the caller checks the bed is
+ * actually available and links it, in the same transaction that marks the
+ * bed occupied (docs/13-cloud-functions.md §13.4: the two must commit
+ * together).
  */
 export const assignBedToAdmission = onCall(async (request) => {
-  const caller = requireCallerRole(request, ["office", "doctor"]);
+  const caller = requireCallerRole(request, ["office"]);
   const { hospitalId, branchId, admissionId, bedId } = AssignBedToAdmissionRequest.parse(request.data);
   assertOwnHospital(caller, hospitalId);
   if (caller.branchId !== branchId) {
@@ -41,9 +38,6 @@ export const assignBedToAdmission = onCall(async (request) => {
 
     if (!admissionSnap.exists) {
       throw new HttpsError("not-found", "Admission request not found.");
-    }
-    if (caller.role === "doctor" && admission?.doctorId !== caller.uid) {
-      throw new HttpsError("permission-denied", "You can only assign a bed to your own patients.");
     }
     if (admission?.status !== "pendingBedAssignment") {
       throw new HttpsError("failed-precondition", "This admission is not awaiting a bed assignment.");

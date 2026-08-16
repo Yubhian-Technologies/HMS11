@@ -40,25 +40,11 @@ export const UploadLabReportResponse = z.object({ labReportId: z.string() });
 export type UploadLabReportResponse = z.infer<typeof UploadLabReportResponse>;
 
 /**
- * doctor only, own branch — assigns a lab test to a patient outside the
- * consult flow. Starts at "pendingPayment", not "pending" — Office must
- * mark it paid (markLabOrderPaid) before it enters the Module 10 pipeline.
+ * office only, own branch — flips a lab order from "pendingPayment" to
+ * "pending" (every lab order requires prepayment, regardless of the fact
+ * that Admission/Prescription/Lab all originate only from
+ * submitConsultation now).
  */
-export const AssignLabOrderRequest = z
-  .object({
-    hospitalId: z.string().min(1),
-    branchId: z.string().min(1),
-    patientId: z.string().min(1),
-    appointmentId: z.string().min(1),
-    testId: z.string().min(1),
-  })
-  .strict();
-export type AssignLabOrderRequest = z.infer<typeof AssignLabOrderRequest>;
-
-export const AssignLabOrderResponse = z.object({ labOrderId: z.string() });
-export type AssignLabOrderResponse = z.infer<typeof AssignLabOrderResponse>;
-
-/** office only, own branch — flips a standalone lab order from "pendingPayment" to "pending". */
 export const MarkLabOrderPaidRequest = z
   .object({
     hospitalId: z.string().min(1),

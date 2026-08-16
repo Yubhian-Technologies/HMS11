@@ -22,10 +22,7 @@ export type ModuleName =
   | "roomsWardsBeds"
   | "labTestMaster"
   | "medicineInventory"
-  | "doctorAvailabilityTemplates"
   | "doctorSlots"
-  | "availabilityRequests"
-  | "doctorMedicineOrders"
   | "patients"
   | "appointments"
   | "emergencyQueue"
@@ -66,10 +63,7 @@ export const PERMISSION_MATRIX: Record<ModuleName, ModulePermissions> = {
   roomsWardsBeds: { super_admin: R, admin: CRUS, office: RU, reception: R, nurse: RU, doctor: R },
   labTestMaster: { super_admin: R, admin: CRUS, doctor: R, lab: R, patient: R },
   medicineInventory: { super_admin: R, admin: CRUS, pharmacy: CRU },
-  doctorAvailabilityTemplates: { super_admin: R, admin: CRU, office: R, reception: R, doctor: CRU },
   doctorSlots: { super_admin: R, admin: R, office: ["read", "statusChange"], reception: R, doctor: ["statusChange"], patient: R },
-  availabilityRequests: { super_admin: R, admin: R, office: CR, doctor: RU },
-  doctorMedicineOrders: { super_admin: R, admin: R, doctor: CR, pharmacy: R },
   patients: {
     super_admin: R, admin: R, office: R, reception: CRU, nurse: R, doctor: R, pharmacy: R, lab: R, patient: CRU,
   },

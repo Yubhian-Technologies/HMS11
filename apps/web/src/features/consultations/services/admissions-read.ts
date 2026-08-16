@@ -17,6 +17,29 @@ export async function listActiveAdmissionsForDoctor(
   return snap.docs.map((doc) => ({ id: doc.id, ...(doc.data() as Admission) }));
 }
 
+/** Nurse's own ward-care queue — patients currently admitted under this nurse's assignment. */
+export async function listActiveAdmissionsForNurse(
+  hospitalId: string,
+  branchId: string,
+  nurseId: string,
+): Promise<AdmissionRecord[]> {
+  const snap = await getAdminDb()
+    .collection(branchCollection(hospitalId, branchId, "admissions"))
+    .where("nurseId", "==", nurseId)
+    .where("status", "==", "admitted")
+    .get();
+  return snap.docs.map((doc) => ({ id: doc.id, ...(doc.data() as Admission) }));
+}
+
+/** Office Room Assignment queue — every currently-admitted patient in the branch, for nurse assignment. */
+export async function listActiveAdmissions(hospitalId: string, branchId: string): Promise<AdmissionRecord[]> {
+  const snap = await getAdminDb()
+    .collection(branchCollection(hospitalId, branchId, "admissions"))
+    .where("status", "==", "admitted")
+    .get();
+  return snap.docs.map((doc) => ({ id: doc.id, ...(doc.data() as Admission) }));
+}
+
 /** Office Room Assignment queue — doctor-flagged requests awaiting a bed. */
 export async function listPendingBedAssignments(hospitalId: string, branchId: string): Promise<AdmissionRecord[]> {
   const snap = await getAdminDb()

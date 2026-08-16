@@ -190,18 +190,6 @@ service cloud.firestore {
           allow update: if hasRole(['admin']) && isHospitalScoped(hospitalId);
           allow delete: if false;
 
-          match /availabilityTemplates/{templateId} {
-            allow read: if isSuperAdmin()
-              || (hasRole(['admin']) && isHospitalScoped(hospitalId))
-              || (hasRole(['office', 'reception']) && isBranchScoped(hospitalId, branchId))
-              || (hasRole(['doctor']) && request.auth.uid == uid);
-            allow create: if (hasRole(['admin']) && isHospitalScoped(hospitalId))
-              || (hasRole(['doctor']) && request.auth.uid == uid && isBranchScoped(hospitalId, branchId));
-            allow update: if (hasRole(['admin']) && isHospitalScoped(hospitalId))
-              || (hasRole(['doctor']) && request.auth.uid == uid);
-            allow delete: if false;
-          }
-
           // Patients may read any APPROVED slot platform-wide (booking
           // browse) — ownership scope doesn't apply to browsing availability.
           match /slots/{slotId} {
@@ -215,16 +203,6 @@ service cloud.firestore {
               || (hasRole(['office']) && isBranchScoped(hospitalId, branchId));
             allow delete: if false;
           }
-        }
-
-        match /availabilityRequests/{requestId} {
-          allow read: if isSuperAdmin()
-            || (hasRole(['admin']) && isHospitalScoped(hospitalId))
-            || (hasRole(['office']) && isBranchScoped(hospitalId, branchId))
-            || (hasRole(['doctor']) && resource.data.doctorId == request.auth.uid);
-          allow create: if hasRole(['office']) && isBranchScoped(hospitalId, branchId);
-          allow update: if hasRole(['doctor']) && resource.data.doctorId == request.auth.uid;
-          allow delete: if false;
         }
 
         match /wards/{wardId} {
@@ -304,13 +282,15 @@ service cloud.firestore {
             || (hasRole(['reception', 'office']) && isBranchScoped(hospitalId, branchId));
 
           allow update: if (hasRole(['office']) && isBranchScoped(hospitalId, branchId))
-            || (hasRole(['reception']) && isBranchScoped(hospitalId, branchId)
-                && onlyFieldsChanged(['checkIn', 'status', 'updatedAt']))
             || (hasRole(['nurse']) && isBranchScoped(hospitalId, branchId)
                 && resource.data.status == 'CHECKED_IN' && request.resource.data.status == 'VITALS_COMPLETED'
                 && onlyFieldsChanged(['vitals', 'status', 'updatedAt']))
             || (hasRole(['doctor']) && resource.data.doctorId == request.auth.uid
-                && onlyFieldsChanged(['consultationSummary', 'status', 'updatedAt']));
+                && ((request.resource.data.status == 'CONSULTING'
+                     && onlyFieldsChanged(['status', 'updatedAt']))
+                    || (resource.data.status == 'CONSULTING'
+                        && onlyFieldsChanged(['consultationSummary', 'status', 'updatedAt']))
+                    || onlyFieldsChanged(['consultDraft', 'updatedAt'])));
 
           allow delete: if false;
         }
@@ -321,10 +301,13 @@ service cloud.firestore {
             || (hasRole(['doctor', 'reception', 'office', 'nurse']) && isBranchScoped(hospitalId, branchId))
             || (isOwner(resource));
           allow create: if hasRole(['doctor']) && isBranchScoped(hospitalId, branchId);
-          allow update: if (hasRole(['doctor']) && isBranchScoped(hospitalId, branchId)) // discharge
+          allow update: if (hasRole(['doctor']) && isBranchScoped(hospitalId, branchId)
+                && resource.data.status == 'admitted' && request.resource.data.status == 'discharged')
             || (hasRole(['office']) && isBranchScoped(hospitalId, branchId)
-                && resource.data.status == 'pendingBedAssignment' && request.resource.data.status == 'admitted')
+                && ((resource.data.status == 'pendingBedAssignment' && request.resource.data.status == 'admitted')
+                    || (resource.data.status == 'admitted' && onlyFieldsChanged(['nurseId', 'updatedAt']))))
             || (hasRole(['nurse']) && isBranchScoped(hospitalId, branchId)
+                && resource.data.nurseId == request.auth.uid
                 && onlyFieldsChanged(['careNotes', 'updatedAt'])); // ward care, not bed/status
           allow delete: if false;
         }
@@ -410,15 +393,6 @@ service cloud.firestore {
           // FR-14.1 — patient marks their own dose taken/missed/skipped.
           allow update: if isOwner(resource)
             && onlyFieldsChanged(['patientStatus', 'updatedAt']);
-          allow delete: if false;
-        }
-
-        match /doctorMedicineOrders/{id} {
-          allow read: if isSuperAdmin()
-            || (hasRole(['admin']) && isHospitalScoped(hospitalId))
-            || (hasRole(['doctor', 'pharmacy']) && isBranchScoped(hospitalId, branchId));
-          allow create: if hasRole(['doctor']) && isBranchScoped(hospitalId, branchId);
-          allow update: if false;
           allow delete: if false;
         }
 

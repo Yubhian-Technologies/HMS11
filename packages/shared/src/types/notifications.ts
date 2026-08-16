@@ -7,7 +7,8 @@ export type NotificationType =
   | "labReportReady"
   | "prescriptionReady"
   | "followUpReminder"
-  | "emergencyUpdate";
+  | "emergencyUpdate"
+  | "slotProposal";
 
 /**
  * notifications/{id}. hospitalId is nullable — a notification follows its

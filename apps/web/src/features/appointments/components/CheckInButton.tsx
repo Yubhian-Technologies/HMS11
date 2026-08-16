@@ -4,7 +4,7 @@ import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { checkInPatient } from "../services/reception";
+import { checkInPatient } from "../services/appointments";
 
 export function CheckInButton({
   hospitalId,

@@ -50,6 +50,7 @@ export const joinWaitingList = onCall(async (request) => {
       checkIn: null,
       vitals: null,
       consultationSummary: null,
+      consultDraft: null,
       status: "PENDING",
       waitingListPosition,
       hospitalId: input.hospitalId,

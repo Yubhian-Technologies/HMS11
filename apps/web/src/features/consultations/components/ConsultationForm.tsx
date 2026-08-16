@@ -1,8 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { doc, updateDoc, serverTimestamp } from "firebase/firestore";
+import { db } from "@/lib/firebase/client";
+import { branchCollection } from "@hms/shared";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -27,6 +30,14 @@ const EMPTY_ITEM: PrescriptionItemForm = {
   instructions: "",
 };
 
+export interface ConsultDraftInitial {
+  diagnosis?: string;
+  clinicalNotes?: string;
+  prescription?: PrescriptionItemForm[];
+  labTestIds?: string[];
+  admissionRequested?: boolean;
+}
+
 export function ConsultationForm({
   hospitalId,
   branchId,
@@ -34,6 +45,7 @@ export function ConsultationForm({
   labTests,
   departments,
   doctors,
+  initialDraft,
 }: {
   hospitalId: string;
   branchId: string;
@@ -41,14 +53,15 @@ export function ConsultationForm({
   labTests: { id: string; name: string; price: number }[];
   departments: { id: string; name: string }[];
   doctors: { id: string; name: string }[];
+  initialDraft?: ConsultDraftInitial | null;
 }) {
   const router = useRouter();
-  const [diagnosis, setDiagnosis] = useState("");
-  const [clinicalNotes, setClinicalNotes] = useState("");
-  const [items, setItems] = useState<PrescriptionItemForm[]>([]);
-  const [selectedTestIds, setSelectedTestIds] = useState<string[]>([]);
+  const [diagnosis, setDiagnosis] = useState(initialDraft?.diagnosis ?? "");
+  const [clinicalNotes, setClinicalNotes] = useState(initialDraft?.clinicalNotes ?? "");
+  const [items, setItems] = useState<PrescriptionItemForm[]>(initialDraft?.prescription ?? []);
+  const [selectedTestIds, setSelectedTestIds] = useState<string[]>(initialDraft?.labTestIds ?? []);
 
-  const [admitEnabled, setAdmitEnabled] = useState(false);
+  const [admitEnabled, setAdmitEnabled] = useState(initialDraft?.admissionRequested ?? false);
 
   const [followUpEnabled, setFollowUpEnabled] = useState(false);
   const [followUpDate, setFollowUpDate] = useState("");
@@ -64,6 +77,44 @@ export function ConsultationForm({
   const [referralReason, setReferralReason] = useState("");
 
   const [submitting, setSubmitting] = useState(false);
+
+  // Autosave the draft (debounced) so a refresh/crash mid-consultation
+  // doesn't lose it — skips the very first render (that's just the initial
+  // value we already loaded, not a real edit) and while submitting (the
+  // server clears consultDraft on success; racing it would resurrect it).
+  // hasSubmitted is checked *inside* the timer callback, not just when
+  // scheduling it — a timer already in flight when handleSubmit fires must
+  // still no-op, since the client-side page transition after a successful
+  // submit can keep this component mounted (and its pending timer alive)
+  // for a moment after the server has already cleared consultDraft.
+  const isFirstRender = useRef(true);
+  const hasSubmitted = useRef(false);
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    if (submitting || hasSubmitted.current) return;
+    const handle = setTimeout(() => {
+      if (hasSubmitted.current) return;
+      const appointmentsCollection = branchCollection(hospitalId, branchId, "appointments");
+      updateDoc(doc(db, appointmentsCollection, appointmentId), {
+        consultDraft: {
+          diagnosis,
+          clinicalNotes,
+          prescription: items,
+          labTestIds: selectedTestIds,
+          admissionRequested: admitEnabled,
+          savedAt: serverTimestamp(),
+        },
+        updatedAt: serverTimestamp(),
+      }).catch(() => {
+        // Best-effort — a failed autosave must never interrupt the doctor's typing.
+      });
+    }, 1500);
+    return () => clearTimeout(handle);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [diagnosis, clinicalNotes, items, selectedTestIds, admitEnabled, submitting]);
 
   function toggleTest(testId: string) {
     setSelectedTestIds((prev) => (prev.includes(testId) ? prev.filter((t) => t !== testId) : [...prev, testId]));
@@ -81,6 +132,7 @@ export function ConsultationForm({
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    hasSubmitted.current = true;
     setSubmitting(true);
     try {
       await submitConsultation({
@@ -108,6 +160,7 @@ export function ConsultationForm({
       router.push("/doctor");
       router.refresh();
     } catch (err) {
+      hasSubmitted.current = false; // submit failed — doctor is still editing, autosave should resume
       toast.error(err instanceof Error ? err.message : "Failed to submit consultation.");
     } finally {
       setSubmitting(false);

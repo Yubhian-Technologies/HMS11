@@ -1,5 +1,18 @@
 import { z } from "zod";
 
+/** doctor only, own appointment. VITALS_COMPLETED -> CONSULTING, when the doctor opens the chart. */
+export const StartConsultationRequest = z
+  .object({
+    hospitalId: z.string().min(1),
+    branchId: z.string().min(1),
+    appointmentId: z.string().min(1),
+  })
+  .strict();
+export type StartConsultationRequest = z.infer<typeof StartConsultationRequest>;
+
+export const StartConsultationResponse = z.object({ success: z.boolean() });
+export type StartConsultationResponse = z.infer<typeof StartConsultationResponse>;
+
 export const PrescriptionItemSchema = z
   .object({
     medicineName: z.string().min(1),
@@ -9,6 +22,26 @@ export const PrescriptionItemSchema = z
     instructions: z.string().default(""),
   })
   .strict();
+
+/**
+ * doctor only, own appointment. Autosaves in-progress consult form state so
+ * a refresh/crash mid-consultation doesn't lose it. Every field optional —
+ * this is a draft snapshot, not a validated submission (that's
+ * SubmitConsultationRequest). Written directly by the client (Security
+ * Rules restrict the doctor's write to exactly `consultDraft`/`updatedAt`),
+ * not through a callable — this needs to be cheap and frequent (debounced
+ * autosave), not audited like a real state transition.
+ */
+export const SaveConsultDraftSchema = z
+  .object({
+    diagnosis: z.string().optional(),
+    clinicalNotes: z.string().optional(),
+    prescription: z.array(PrescriptionItemSchema).optional(),
+    labTestIds: z.array(z.string()).optional(),
+    admissionRequested: z.boolean().optional(),
+  })
+  .strict();
+export type SaveConsultDraft = z.infer<typeof SaveConsultDraftSchema>;
 
 /**
  * FR-9.2–9.8. doctor only, own appointment. One transactional action covers

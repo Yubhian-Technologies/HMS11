@@ -47,16 +47,16 @@ export { updateMedicineInventoryItem } from "./callable/updateMedicineInventoryI
 export { setMedicineInventoryItemStatus } from "./callable/setMedicineInventoryItemStatus";
 
 // Module 5 — Doctor Availability & Slot Management (docs/13-cloud-functions.md §13.3).
-export { createAvailabilityTemplate } from "./callable/createAvailabilityTemplate";
-export { setAvailabilityTemplateStatus } from "./callable/setAvailabilityTemplateStatus";
+// Office-initiated only: Office proposes -> doctor confirms total -> Office
+// splits online/walk-in + sets the no-show cutoff and releases it. The
+// earlier doctor-authored recurring-template + nightly-generation mechanism
+// was retired in favor of this single origination path (no more silent
+// collisions between two systems writing the same doctorSlots doc).
 export { setSlotStatus } from "./callable/setSlotStatus";
 export { bulkApproveSlots } from "./callable/bulkApproveSlots";
 export { createManualSlot } from "./callable/createManualSlot";
-export { generateRollingSlots } from "./scheduled/generateRollingSlots";
-
-// Doctor Availability Requests (Doctor Dashboard modules add-on).
-export { createAvailabilityRequest } from "./callable/createAvailabilityRequest";
-export { respondAvailabilityRequest } from "./callable/respondAvailabilityRequest";
+export { bulkCreateManualSlots } from "./callable/bulkCreateManualSlots";
+export { submitSlotProposal } from "./callable/submitSlotProposal";
 
 // Module 6 — Patient Registration & Portal (docs/13-cloud-functions.md §13.3).
 export { registerPatientProfile } from "./callable/registerPatientProfile";
@@ -74,29 +74,30 @@ export { joinWaitingList } from "./callable/joinWaitingList";
 // Module 8 — Reception & Vitals (docs/13-cloud-functions.md §13.3).
 export { checkInPatient } from "./callable/checkInPatient";
 export { recordVitals } from "./callable/recordVitals";
+// Phase C step 3 — no-show reservation expiry + walk-in-pool reclaim.
+export { expireStaleAppointments } from "./scheduled/expireStaleAppointments";
 
 // Module 9 — Consultation Workspace (docs/13-cloud-functions.md §13.3).
+// Consult-only origination: Admission/Prescription/Lab all originate from
+// submitConsultation — the earlier standalone assignLabOrder/
+// assignMedicineOrder creation endpoints were retired to eliminate the
+// duplicate-record risk of two independent origination paths per appointment.
+export { startConsultation } from "./callable/startConsultation";
 export { submitConsultation } from "./callable/submitConsultation";
 
 // Module 10 — Laboratory Workflow (docs/13-cloud-functions.md §13.3).
 export { advanceLabOrderStatus } from "./callable/advanceLabOrderStatus";
 export { uploadLabReport } from "./callable/uploadLabReport";
-
-// Doctor Labs module (Doctor Dashboard modules add-on) — standalone lab
-// order assignment + Office payment gate ahead of the Module 10 pipeline.
-export { assignLabOrder } from "./callable/assignLabOrder";
 export { markLabOrderPaid } from "./callable/markLabOrderPaid";
 
 // Module 11 — Pharmacy Workflow (docs/13-cloud-functions.md §13.3).
 export { dispenseMedicine } from "./callable/dispenseMedicine";
 export { dispatchExpiryAlerts } from "./scheduled/dispatchExpiryAlerts";
 
-// Doctor Medicine Orders module (Doctor Dashboard modules add-on).
-export { assignMedicineOrder } from "./callable/assignMedicineOrder";
-
 // Module 12 — Admissions & Bed Management (docs/13-cloud-functions.md §13.3).
 export { dischargePatient } from "./callable/dischargePatient";
 export { assignBedToAdmission } from "./callable/assignBedToAdmission";
+export { assignNurseToAdmission } from "./callable/assignNurseToAdmission";
 
 // Nurse Ward Care (docs/14-api-design.md §14.2 — Nurse role activation).
 export { updateWardCareStatus } from "./callable/updateWardCareStatus";

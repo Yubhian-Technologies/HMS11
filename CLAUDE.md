@@ -71,6 +71,99 @@ real service account).
 
 ## Changelog
 
+### 2026-08-15 — Phase A→D flow-consistency pass (capacity/booking/check-in/consultation)
+
+Implemented against a written Phase A→D product-flow audit; see that audit's
+decision log for the product calls behind each item below.
+
+- **Phase A — capacity origination unified**: retired the doctor-authored
+  recurring-template + nightly `generateRollingSlots` mechanism entirely
+  (deleted `createAvailabilityTemplate`/`setAvailabilityTemplateStatus`/
+  `generateRollingSlots`, the `DoctorAvailabilityTemplate` type/collection,
+  and the "Weekly Template" doctor UI). Office's ad-hoc proposal flow
+  (`createManualSlot` → `submitSlotProposal` → `setSlotStatus`) is now the
+  only way a `doctorSlots` pool originates — no more two mechanisms writing
+  the same doc id. **Online/walk-in split moved to Office**: the doctor's
+  `submitSlotProposal` now confirms/adjusts `totalCount` only; Office sets
+  `walkInReserved` and the new `checkInCutoffMinutes` at publish time
+  (`setSlotStatus` → `approved`), matching the product order (doctor
+  confirms total, then Office splits).
+- **Phase B — booking status gate split by caller**: `bookAppointment` now
+  starts a Reception walk-in at `BOOKED` directly (already staff-initiated
+  in person); a patient's own online booking still starts `PENDING`,
+  gated on Office approval (`setAppointmentStatus`).
+- **Phase C — check-in moved to Office**: `checkInPatient` is now
+  `office`-only (was `reception`-only); the check-in action moved from the
+  Reception page onto Office's Appointments page. Both `checkInPatient` and
+  `recordVitals` now run inside a Firestore transaction (previously a plain
+  get-then-update — a real double-submit race). **No-show expiry added**:
+  new `EXPIRED` status + `expireStaleAppointments` scheduled function
+  (every 5 min) flips a stale `BOOKED` appointment past its pool's
+  `checkInCutoffMinutes` and reclaims the held unit into `walkInReserved`
+  (this didn't exist before at all).
+- **Phase D — appointment status no longer encodes branch outcome**: this
+  was the central finding of the audit — `AppointmentStatus` used to
+  include `LAB_REQUESTED`/`PRESCRIPTION_READY`/`ADMITTED`/`PAYMENT_PENDING`/
+  `LAB_IN_PROGRESS`/`REPORT_UPLOADED`/`DISCHARGED` as appointment-level
+  values, and `submitConsultation` picked exactly one via an if/else chain
+  that never actually assigned `ADMITTED` at all. `AppointmentStatus` is now
+  visit-lifecycle-only (`PENDING/BOOKED/CHECKED_IN/VITALS_COMPLETED/
+  CONSULTING/COMPLETED/EXPIRED/REJECTED/RESCHEDULED/CANCELLED`);
+  `submitConsultation` always sets `COMPLETED` on submit regardless of which
+  of the three branches fired, and each branch's real state lives only in
+  its own collection (`admissions.status`, `labOrders.status`,
+  prescription dispensing) — already independently queryable
+  (`getPatientHistory` et al.), now the only source of truth for branch
+  state. Added a real `startConsultation` callable
+  (`VITALS_COMPLETED`→`CONSULTING`) so `submitConsultation` requires
+  `CONSULTING` instead of jumping straight from `VITALS_COMPLETED` — a
+  doctor's queue can now distinguish "next in line" from "already being
+  seen," and a `CONSULTING` appointment stays visible on the queue as
+  resumable instead of disappearing.
+  - **Consult-only origination**: retired `assignLabOrder`/
+    `assignMedicineOrder` and the entire `doctorMedicineOrders` collection
+    (type, validation, rules, indexes, UI) — Admission/Prescription/Lab now
+    originate only from `submitConsultation`, eliminating the
+    two-independent-paths duplicate-record risk. The Doctor Labs/
+    Prescriptions pages are now read-only status views.
+  - **Every lab order requires prepayment**: consult-flow lab orders now
+    start at `pendingPayment` (previously skipped straight to `pending`,
+    bypassing Office's payment gate that the standalone path enforced) —
+    `markLabOrderPaid` is the one universal gate into the processing
+    pipeline regardless of origin.
+  - **Bed assignment is Office-only**: `assignBedToAdmission` no longer
+    accepts the `doctor` role (the doctor's admissions page dropped its
+    "Assign Bed" action) — matches "Office checks bed availability and
+    allots the bed," not the doctor.
+  - **Office explicitly assigns the ward-care nurse**: new
+    `assignNurseToAdmission` callable (Office picks from the branch's nurse
+    roster, wired into Office's Room Assignment page) replaces the old
+    behavior where `updateWardCareStatus` silently self-assigned
+    `nurseId` to whichever nurse called it first; that callable now
+    requires the caller to already be the assigned nurse.
+  - **Consult draft autosave**: appointments gained an embedded
+    `consultDraft` field; `ConsultationForm` debounce-autosaves in-progress
+    selections directly via the client SDK (Security Rules restrict the
+    doctor's write to exactly `consultDraft`/`updatedAt`) and restores them
+    on mount, so a refresh/crash mid-consultation no longer loses
+    unsubmitted work. `submitConsultation` clears it on successful submit.
+- **Verification status**: `packages/shared`, `packages/shared-server`,
+  `functions`, and `apps/web` all typecheck/build clean (`pnpm --filter
+  <pkg> build` / `typecheck`), including a full `next build`. End-to-end
+  verification against the Firestore/Auth emulators was **not** run (same
+  constraint as the 2026-07-27 entry below — no Java runtime on this
+  machine for the Local Emulator Suite). Before trusting this in a real
+  environment: run the emulator suite, reseed
+  (`seed-super-admin`/`seed-demo`), and walk Office-propose → doctor-confirm
+  → Office-split-and-release → book → check-in → vitals → start-consult →
+  submit-consult (Admission+Prescription+Lab together) → Office bed+nurse
+  assignment → Pharmacy dispense → Lab result upload, end to end.
+- **Not done in this pass** (explicitly out of scope per the audit's
+  decision log): a single-action "propose 3 days × 2 sessions at once" bulk
+  Office UI (each proposal is still one `(date, session)` at a time; doctor
+  and Office each still have a bulk *confirm*/*publish*-all-for-one-date
+  shortcut) — deferred, not blocking.
+
 ### 2026-07-27 — Nested Firestore hierarchy + Nurse role activation
 
 Migrated the schema from flat top-level Firestore collections to the nested

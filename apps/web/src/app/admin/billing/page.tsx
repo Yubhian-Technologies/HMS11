@@ -1,8 +1,13 @@
 import { redirect } from "next/navigation";
-import { Badge } from "@/components/ui/badge";
+import { Receipt } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getSession } from "@/lib/auth/require-role";
 import { listOutstandingInvoicesForHospital } from "@/features/billing/services/read";
+import { PageHeader } from "@/components/page-header";
+import { EmptyState } from "@/components/empty-state";
+import { StatTile, StatTileRow } from "@/components/stat-tile";
+import { StatusBadge } from "@/components/status-badge";
+import { INVOICE_STATUS_META, fallbackStatusMeta } from "@/lib/status-meta";
 
 export default async function AdminBillingPage() {
   const session = await getSession();
@@ -14,17 +19,12 @@ export default async function AdminBillingPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-xl font-semibold text-foreground">Billing Overview</h1>
+      <PageHeader title="Billing Overview" />
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Outstanding dues (FR-15.4)</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-3xl font-semibold text-foreground">{totalDue}</p>
-          <p className="text-sm text-muted-foreground">across {outstanding.length} invoices</p>
-        </CardContent>
-      </Card>
+      <StatTileRow>
+        <StatTile icon={Receipt} label="Total Due (FR-15.4)" value={totalDue} tone="warning" />
+        <StatTile icon={Receipt} label="Outstanding Invoices" value={outstanding.length} tone="neutral" />
+      </StatTileRow>
 
       <Card>
         <CardHeader>
@@ -32,7 +32,7 @@ export default async function AdminBillingPage() {
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
           {outstanding.length === 0 ? (
-            <p className="py-6 text-center text-sm text-muted-foreground">No outstanding invoices.</p>
+            <EmptyState icon={Receipt} message="No outstanding invoices." />
           ) : (
             outstanding.map((inv) => (
               <div
@@ -42,7 +42,7 @@ export default async function AdminBillingPage() {
                 <p className="text-foreground">
                   Total {inv.totalAmount} · Paid {inv.paidAmount} · Due {inv.totalAmount - inv.paidAmount}
                 </p>
-                <Badge variant="destructive">{inv.status}</Badge>
+                <StatusBadge {...(INVOICE_STATUS_META[inv.status] ?? fallbackStatusMeta(inv.status))} />
               </div>
             ))
           )}

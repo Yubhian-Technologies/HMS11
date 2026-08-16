@@ -5,11 +5,15 @@ import { requireCallerRole } from "../services/callable-auth";
 import { assertOwnHospital } from "../services/scope-checks";
 
 /**
- * Nurse only, own branch — ward-care progress notes during an admission
- * (docs/14-api-design.md §14.2). Deliberately restricted to the `careNotes`
- * field: bed assignment and discharge stay with Office/Doctor respectively
- * (docs/08-permission-matrix.md "Admissions" row), enforced here and mirrored
- * in firestore.rules' field-restricted update rule on `admissions`.
+ * Nurse only, own branch, own assigned patient — ward-care progress notes
+ * during an admission (docs/14-api-design.md §14.2). Deliberately
+ * restricted to the `careNotes` field: bed assignment stays with Office,
+ * discharge with the Doctor (docs/08-permission-matrix.md "Admissions"
+ * row), enforced here and mirrored in firestore.rules' field-restricted
+ * update rule on `admissions`. Office explicitly assigns the nurse
+ * (assignNurseToAdmission) — this callable no longer self-assigns whoever
+ * calls it first; it requires the caller to already be that admission's
+ * assigned nurse.
  */
 export const updateWardCareStatus = onCall(async (request) => {
   const caller = requireCallerRole(request, ["nurse"]);
@@ -32,9 +36,12 @@ export const updateWardCareStatus = onCall(async (request) => {
   if (admission?.status !== "admitted") {
     throw new HttpsError("failed-precondition", "This patient is not currently admitted.");
   }
+  if (admission?.nurseId !== caller.uid) {
+    throw new HttpsError("permission-denied", "You are not the nurse assigned to this patient.");
+  }
 
   const now = FieldValue.serverTimestamp();
-  await admissionRef.update({ careNotes: input.careNotes, nurseId: caller.uid, updatedAt: now });
+  await admissionRef.update({ careNotes: input.careNotes, updatedAt: now });
 
   await db.collection("auditLogs").doc().set({
     hospitalId: input.hospitalId,

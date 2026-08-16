@@ -23,7 +23,7 @@ export type BookAppointmentRequest = z.infer<typeof BookAppointmentRequest>;
 
 export const BookAppointmentResponse = z.object({
   appointmentId: z.string(),
-  status: z.literal("PENDING"),
+  status: z.enum(["PENDING", "BOOKED"]),
 });
 export type BookAppointmentResponse = z.infer<typeof BookAppointmentResponse>;
 
