@@ -1,16 +1,40 @@
 {
   "name": "hms",
+  "version": "0.1.0",
   "private": true,
-  "packageManager": "pnpm@11.15.1+sha512.81350b07e53c9538a02f1f2303b4290fa2d7be04e56e2a970c4cc4b417dc761de196edabd49d55c7dc9580db81007c44143e4e3d7e462b3000d23c255122d065",
   "scripts": {
-    "dev": "pnpm build:shared && pnpm --filter @hms/web dev",
-    "build:shared": "pnpm --filter @hms/shared build && pnpm --filter @hms/shared-server build",
-    "build": "pnpm build:shared && pnpm --filter functions build && pnpm --filter @hms/web build",
-    "lint": "pnpm -r lint",
-    "typecheck": "pnpm build:shared && pnpm -r typecheck",
-    "emulators": "firebase emulators:start"
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@base-ui/react": "^1.6.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "firebase": "^11.1.0",
+    "firebase-admin": "^13.0.2",
+    "lucide-react": "^1.25.0",
+    "next": "16.2.10",
+    "next-themes": "^0.4.6",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "server-only": "^0.0.1",
+    "shadcn": "^4.13.1",
+    "sonner": "^2.0.7",
+    "tailwind-merge": "^3.6.0",
+    "tw-animate-css": "^1.4.0",
+    "zod": "^3.24.1"
   },
   "devDependencies": {
-    "firebase-tools": "^15.24.0"
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.2.10",
+    "tailwindcss": "^4",
+    "typescript": "^5"
   }
 }
