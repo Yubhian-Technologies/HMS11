@@ -4,10 +4,17 @@ import {
   CreateDepartmentResponse,
   UpdateDepartmentRequest,
   SetDepartmentStatusRequest,
+  SetDepartmentPublicReleaseRequest,
 } from "@hms/shared";
 import { createCallable } from "@/lib/firebase/callable";
 
 const SuccessResponse = z.object({ success: z.boolean() });
+
+export const setDepartmentPublicRelease = createCallable(
+  "setDepartmentPublicRelease",
+  SetDepartmentPublicReleaseRequest,
+  SuccessResponse,
+);
 
 export const createDepartment = createCallable(
   "createDepartment",

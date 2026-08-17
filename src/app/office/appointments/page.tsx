@@ -9,8 +9,8 @@ import { rollingWindowDates } from "@/lib/rolling-window";
 import { listBranchAppointmentsForDates } from "@/features/appointments/services/read";
 import { listWalkInPatients } from "@/features/patients/services/read";
 import { listStaffByRole, listDoctorProfiles } from "@/features/staff/services/read";
+import { listDepartments } from "@/features/departments/services/read";
 import { AppointmentActionButtons } from "@/features/appointments/components/AppointmentActionButtons";
-import { CheckInButton } from "@/features/appointments/components/CheckInButton";
 import { CreateEmergencyDialog } from "@/features/appointments/components/CreateEmergencyDialog";
 
 const SESSION_LABEL: Record<string, string> = { morning: "Morning", afternoon: "Afternoon" };
@@ -28,21 +28,36 @@ export default async function OfficeAppointmentsPage({
   const defaultTab = tab === "emergency" || tab === "approved" ? tab : "pending";
 
   const dates = rollingWindowDates();
-  const [appointments, patients, doctors, doctorProfiles] = await Promise.all([
+  const [appointments, patients, doctors, doctorProfiles, departments] = await Promise.all([
     listBranchAppointmentsForDates(hospitalId, branchId, dates),
     listWalkInPatients(hospitalId, branchId),
     listStaffByRole(hospitalId, "doctor"),
     listDoctorProfiles(hospitalId, branchId),
+    listDepartments(hospitalId),
   ]);
   const branchDoctors = doctors.filter((d) => d.branchId === branchId);
   const departmentIdByDoctor = new Map(doctorProfiles.map((p) => [p.id, p.departmentId]));
+  const departmentNameById = new Map(departments.map((d) => [d.id, d.name]));
 
   const doctorProfilesById = new Map(doctors.map((d) => [d.id, d.name]));
   const pending = appointments.filter((a) => a.status === "PENDING");
   const approved = appointments.filter((a) => a.status === "BOOKED");
   const emergency = appointments.filter((a) => a.type === "emergency");
 
+  // Consolidated view: every booking today, grouped by department instead
+  // of scattered across per-status tabs — the department is what a patient
+  // actually chose (they never pick a doctor), so this is the summary
+  // Office actually needs at a glance.
+  const today = dates[0]!;
+  const todayBookings = appointments.filter((a) => a.date === today && a.status !== "PENDING" && a.status !== "REJECTED" && a.status !== "CANCELLED");
+  const countByDepartment = new Map<string, number>();
+  for (const appt of todayBookings) {
+    const deptId = appt.departmentId ?? departmentIdByDoctor.get(appt.doctorId) ?? "unknown";
+    countByDepartment.set(deptId, (countByDepartment.get(deptId) ?? 0) + 1);
+  }
+
   function Row({ appt }: { appt: (typeof appointments)[number] }) {
+    const deptName = departmentNameById.get(appt.departmentId ?? "") ?? "—";
     return (
       <div className="flex items-center justify-between rounded-md border border-border p-3 text-sm">
         <div>
@@ -50,7 +65,7 @@ export default async function OfficeAppointmentsPage({
             {appt.patientName} {appt.type === "emergency" ? <Badge variant="destructive">EMERGENCY</Badge> : null}
           </p>
           <p className="text-muted-foreground">
-            {doctorProfilesById.get(appt.doctorId) ?? "Unknown doctor"} · {appt.date} ·{" "}
+            {deptName} · {doctorProfilesById.get(appt.doctorId) ?? "Unknown doctor"} · {appt.date} ·{" "}
             {appt.session ? SESSION_LABEL[appt.session] : "—"}
           </p>
         </div>
@@ -62,9 +77,6 @@ export default async function OfficeAppointmentsPage({
             appointmentId={appt.id}
             status={appt.status}
           />
-          {appt.status === "BOOKED" ? (
-            <CheckInButton hospitalId={hospitalId} branchId={branchId} appointmentId={appt.id} />
-          ) : null}
           {appt.status === "BOOKED" && appt.session ? (
             <Button
               size="sm"
@@ -94,6 +106,28 @@ export default async function OfficeAppointmentsPage({
           }))}
         />
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Today's Bookings — by Department</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {countByDepartment.size === 0 ? (
+            <p className="text-sm text-muted-foreground">No bookings today yet.</p>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {Array.from(countByDepartment.entries()).map(([deptId, count]) => (
+                <Badge key={deptId} variant="secondary" className="text-sm">
+                  {departmentNameById.get(deptId) ?? "Unknown"}: {count}
+                </Badge>
+              ))}
+              <Badge variant="default" className="text-sm">
+                Total: {todayBookings.length}
+              </Badge>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <Tabs key={defaultTab} defaultValue={defaultTab}>
         <TabsList>

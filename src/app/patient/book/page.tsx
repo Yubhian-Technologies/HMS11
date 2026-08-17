@@ -5,21 +5,26 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getSession } from "@/lib/auth/require-role";
 import { rollingWindowDates, formatDateLabel } from "@/lib/rolling-window";
 import { listHospitals, listBranches } from "@/features/hospitals/services/read";
-import { listDepartments } from "@/features/departments/services/read";
-import { listDoctorsByDepartment } from "@/features/appointments/services/read";
-import { listSlotsForDoctorInRange } from "@/features/scheduling/services/read";
+import { listPublicDepartments } from "@/features/departments/services/read";
+import { listSlotsForBranchInRange } from "@/features/scheduling/services/read";
 import { BookSlotButton } from "@/features/appointments/components/BookSlotButton";
-import { JoinWaitingListButton } from "@/features/appointments/components/JoinWaitingListButton";
 
 type SearchParams = {
   hospitalId?: string;
   branchId?: string;
   departmentId?: string;
-  doctorId?: string;
 };
 
 const SESSION_LABEL: Record<string, string> = { morning: "Morning", afternoon: "Afternoon" };
 
+/**
+ * Doctor-anonymous by design (see listBookableDepartments/bookAppointment
+ * doc comments) — a patient picks a department, never a doctor. "General
+ * Medicine" (if released) is offered first as the default; every other
+ * released department is an optional specialization. Capacity shown per
+ * (date, session) is summed across every doctor in that department — the
+ * same pooled-capacity model bookAppointment auto-assigns against.
+ */
 export default async function BookAppointmentPage({
   searchParams,
 }: {
@@ -29,7 +34,7 @@ export default async function BookAppointmentPage({
   if (!session) redirect("/login");
   const patientId = session.uid;
 
-  const { hospitalId, branchId, departmentId, doctorId } = await searchParams;
+  const { hospitalId, branchId, departmentId } = await searchParams;
 
   if (!hospitalId) {
     const hospitals = (await listHospitals()).filter((h) => h.status === "active");
@@ -54,91 +59,86 @@ export default async function BookAppointmentPage({
   }
 
   if (!departmentId) {
-    const departments = (await listDepartments(hospitalId)).filter((d) => d.status === "active");
+    const departments = await listPublicDepartments(hospitalId, branchId);
+    const general = departments.filter((d) => d.isGeneral);
+    const specializations = departments.filter((d) => !d.isGeneral);
     return (
-      <StepCard title="Choose a department">
-        {departments.map((d) => (
-          <StepLink
-            key={d.id}
-            href={`/patient/book?hospitalId=${hospitalId}&branchId=${branchId}&departmentId=${d.id}`}
-            label={d.name}
-          />
-        ))}
-      </StepCard>
-    );
-  }
-
-  if (!doctorId) {
-    const doctors = await listDoctorsByDepartment(hospitalId, branchId, departmentId);
-    return (
-      <StepCard title="Choose a doctor">
-        {doctors.map((d) => (
-          <StepLink
-            key={d.id}
-            href={`/patient/book?hospitalId=${hospitalId}&branchId=${branchId}&departmentId=${departmentId}&doctorId=${d.id}`}
-            label={`${d.name} — ${d.profile.specialization} — fee ${d.profile.consultationFee}`}
-          />
-        ))}
-      </StepCard>
+      <div className="flex flex-col gap-6">
+        {general.length > 0 && (
+          <StepCard title="General consultation">
+            {general.map((d) => (
+              <StepLink
+                key={d.id}
+                href={`/patient/book?hospitalId=${hospitalId}&branchId=${branchId}&departmentId=${d.id}`}
+                label={d.name}
+              />
+            ))}
+          </StepCard>
+        )}
+        <StepCard title="Or choose a specialization (optional)">
+          {specializations.map((d) => (
+            <StepLink
+              key={d.id}
+              href={`/patient/book?hospitalId=${hospitalId}&branchId=${branchId}&departmentId=${d.id}`}
+              label={d.name}
+            />
+          ))}
+        </StepCard>
+      </div>
     );
   }
 
   const dates = rollingWindowDates();
-  const slots = (await listSlotsForDoctorInRange(hospitalId, branchId, doctorId, dates)).filter(
-    (s) => s.status === "approved",
+  const allSlots = (await listSlotsForBranchInRange(hospitalId, branchId, dates)).filter(
+    (s) => s.status === "approved" && s.departmentId === departmentId,
   );
 
   return (
     <div className="flex flex-col gap-6">
       <h1 className="text-xl font-semibold text-foreground">Available Slots</h1>
       {dates.map((date, i) => {
-        const daySlots = slots.filter((s) => s.date === date);
+        // Pool every doctor's remaining online capacity in this department
+        // for this (date, session) into one number — matches exactly what
+        // bookAppointment auto-assigns against, so what the patient sees
+        // here is never more than what booking will actually honor.
+        const bySession = new Map<string, number>();
+        for (const slot of allSlots) {
+          if (slot.date !== date) continue;
+          const remaining = Math.max(0, slot.totalCount - slot.walkInReserved - slot.onlineBookedCount);
+          if (remaining <= 0) continue;
+          bySession.set(slot.session, (bySession.get(slot.session) ?? 0) + remaining);
+        }
+        const bookable = Array.from(bySession.entries());
+
         return (
           <Card key={date}>
             <CardHeader>
               <CardTitle className="text-base">{formatDateLabel(date, i)}</CardTitle>
             </CardHeader>
             <CardContent>
-              {(() => {
-                const bookable = daySlots.filter(
-                  (s) => s.status === "approved" && s.totalCount - s.walkInReserved - s.onlineBookedCount > 0,
-                );
-                return bookable.length === 0 ? (
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm text-muted-foreground">No open sessions.</p>
-                    <JoinWaitingListButton
-                      hospitalId={hospitalId}
-                      branchId={branchId}
-                      patientId={patientId}
-                      doctorId={doctorId}
-                      departmentId={departmentId}
-                      date={date}
-                    />
-                  </div>
-                ) : (
-                  <div className="flex flex-wrap gap-2">
-                    {bookable.map((slot) => (
-                      <div key={slot.id} className="flex items-center gap-2 rounded-md border border-border p-2">
-                        <Badge variant="default">
-                          {SESSION_LABEL[slot.session]} —{" "}
-                          {slot.totalCount - slot.walkInReserved - slot.onlineBookedCount} spots left
-                        </Badge>
-                        <BookSlotButton
-                          hospitalId={hospitalId}
-                          branchId={branchId}
-                          doctorId={doctorId}
-                          date={slot.date}
-                          session={slot.session}
-                          patientId={patientId}
-                          departmentId={departmentId}
-                          label="Book"
-                          redirectTo="/patient"
-                        />
-                      </div>
-                    ))}
-                  </div>
-                );
-              })()}
+              {bookable.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No open sessions.</p>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {bookable.map(([session, availableCount]) => (
+                    <div key={session} className="flex items-center gap-2 rounded-md border border-border p-2">
+                      <Badge variant="default">
+                        {SESSION_LABEL[session]} — {availableCount} spots left
+                      </Badge>
+                      <BookSlotButton
+                        hospitalId={hospitalId}
+                        branchId={branchId}
+                        departmentId={departmentId}
+                        date={date}
+                        session={session as "morning" | "afternoon"}
+                        patientId={patientId}
+                        label="Book"
+                        redirectTo="/patient"
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         );

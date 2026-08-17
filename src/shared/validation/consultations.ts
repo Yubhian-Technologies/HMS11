@@ -38,6 +38,7 @@ export const SaveConsultDraftSchema = z
     clinicalNotes: z.string().optional(),
     prescription: z.array(PrescriptionItemSchema).optional(),
     labTestIds: z.array(z.string()).optional(),
+    customLabTests: z.array(z.string()).optional(),
     admissionRequested: z.boolean().optional(),
   })
   .strict();
@@ -59,6 +60,14 @@ export const SubmitConsultationRequest = z
     clinicalNotes: z.string().default(""),
     prescription: z.array(PrescriptionItemSchema).nullish(),
     labTestIds: z.array(z.string().min(1)).nullish(),
+    // Free-text lab tests not in the labTestMaster catalog — same "Add
+    // Item" pattern as prescription (which was never catalog-bound to
+    // begin with). generateInvoice looks up labTestMaster by testId for
+    // pricing; a custom order's synthetic testId (its own labOrder doc id)
+    // simply won't resolve there, so it prices at 0 rather than failing —
+    // an acceptable trade-off for a test that was never in the priced
+    // catalog in the first place.
+    customLabTests: z.array(z.string().min(1)).nullish(),
     // Office assigns the actual bed afterwards (assignBedToAdmission) — the
     // doctor only flags that a room is needed, no bed picker at this step.
     admissionRequested: z.boolean().optional(),

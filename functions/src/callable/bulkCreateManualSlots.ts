@@ -37,6 +37,7 @@ export const bulkCreateManualSlots = onCall(async (request) => {
   if (!doctorSnap.exists) {
     throw new HttpsError("not-found", "Doctor not found in this branch.");
   }
+  const departmentId = doctorSnap.data()!.departmentId as string;
 
   const slotsCollection = doctorCollection(input.hospitalId, input.branchId, input.doctorId, "slots");
   const dates = Array.from({ length: WINDOW_DAYS }, (_, i) => addDays(todayIso(), i));
@@ -58,6 +59,7 @@ export const bulkCreateManualSlots = onCall(async (request) => {
       if (!poolSnap.exists) {
         await poolRef.set({
           doctorId: input.doctorId,
+          departmentId,
           date,
           session: key,
           totalCount: count,

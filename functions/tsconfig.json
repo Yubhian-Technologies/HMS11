@@ -5,8 +5,13 @@
     "moduleResolution": "node10",
     "ignoreDeprecations": "5.0",
     "outDir": "lib",
-    "rootDir": "src",
-    "sourceMap": true
+    "rootDir": "..",
+    "sourceMap": true,
+    "baseUrl": ".",
+    "paths": {
+      "@hms/shared": ["../src/shared/index.ts"],
+      "@hms/shared-server": ["../src/shared-server/index.ts"]
+    }
   },
   "include": ["src"],
   "compileOnSave": true

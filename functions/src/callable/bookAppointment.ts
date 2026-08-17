@@ -7,16 +7,26 @@ import { sendNotification } from "../notifications/sendNotification";
 const SESSION_LABEL: Record<string, string> = { morning: "morning", afternoon: "afternoon" };
 
 /**
- * FR-6.1 / FR-6.2. Patient (self) or Reception (on behalf). Booking draws
- * from the (doctorId, date, session) pool's counter rather than claiming a
- * specific pre-existing document — Patient can only draw from the
- * non-reserved (online) portion; Reception draws from the walk-in-reserved
- * portion first, falling back to the online portion if the reserved pool is
- * exhausted (FR-4.5 add-on). A patient's own online booking starts "PENDING"
- * — Office still has to approve it (FR-6.3), a separate gate from the doctor
- * having approved the session pool's existence (FR-4.4). A Reception-made
- * walk-in booking is already staff-initiated in person, so it starts
- * "BOOKED" directly — no separate Office approval gate for walk-ins.
+ * FR-6.1 / FR-6.2. Patient (self) or Reception (on behalf) — two different
+ * shapes of the same booking. A patient never picks a doctor (doctor names
+ * aren't shown to patients at all — see listBookableDepartments): they book
+ * a department, and this resolves to whichever doctor in that department at
+ * that (date, session) currently has the MOST remaining online capacity —
+ * both to spread load and because with several doctors racing for the same
+ * slot, trying candidates by "most room" fails less often than a fixed
+ * order would under concurrent bookings. Reception still picks a specific
+ * doctorId directly (a walk-in patient at the counter may ask for one by
+ * name) and draws from the walk-in-reserved portion first, falling back to
+ * online if that's exhausted (FR-4.5 add-on).
+ *
+ * Both paths start "BOOKED" directly, immediately, in the same transaction
+ * that decrements the pool's counter — the slot pool's own "approved"
+ * status (doctor-confirmed + Office-published, setSlotStatus) already is
+ * the approval gate; there's no second, per-appointment Office-review step
+ * layered on top of a slot the pool itself already cleared for booking.
+ * (This does not touch `joinWaitingList`, whose "PENDING" +
+ * waitingListPosition > 0 means something else entirely — a seat not yet
+ * available at all, not a booking pending review.)
  */
 export const bookAppointment = onCall(async (request) => {
   const caller = requireCallerRole(request, ["patient", "reception"]);
@@ -37,8 +47,61 @@ export const bookAppointment = onCall(async (request) => {
     throw new HttpsError("not-found", "Patient not found.");
   }
 
+  let doctorId: string;
+  let departmentId: string;
+
+  if (caller.role === "patient") {
+    if (!input.departmentId) {
+      throw new HttpsError("invalid-argument", "departmentId is required.");
+    }
+    const doctorsSnap = await db
+      .collection(`hospitals/${input.hospitalId}/branches/${input.branchId}/doctors`)
+      .where("departmentId", "==", input.departmentId)
+      .where("status", "==", "active")
+      .get();
+    if (doctorsSnap.empty) {
+      throw new HttpsError("not-found", "No doctors available in this department.");
+    }
+    const slotSnaps = await Promise.all(
+      doctorsSnap.docs.map((d) =>
+        db
+          .doc(`${doctorCollection(input.hospitalId, input.branchId, d.id, "slots")}/${input.date}_${input.session}`)
+          .get(),
+      ),
+    );
+    let bestDoctorId: string | null = null;
+    let bestRemaining = 0;
+    slotSnaps.forEach((snap, i) => {
+      if (!snap.exists) return;
+      const pool = snap.data()!;
+      if (pool.status !== "approved") return;
+      const remaining = Math.max(0, pool.totalCount - pool.walkInReserved - pool.onlineBookedCount);
+      if (remaining > bestRemaining) {
+        bestRemaining = remaining;
+        bestDoctorId = doctorsSnap.docs[i]!.id;
+      }
+    });
+    if (!bestDoctorId) {
+      throw new HttpsError("failed-precondition", "This department is fully booked for that session.");
+    }
+    doctorId = bestDoctorId;
+    departmentId = input.departmentId;
+  } else {
+    if (!input.doctorId) {
+      throw new HttpsError("invalid-argument", "doctorId is required.");
+    }
+    doctorId = input.doctorId;
+    const doctorSnap = await db
+      .doc(`hospitals/${input.hospitalId}/branches/${input.branchId}/doctors/${doctorId}`)
+      .get();
+    if (!doctorSnap.exists) {
+      throw new HttpsError("not-found", "Doctor not found.");
+    }
+    departmentId = doctorSnap.data()!.departmentId as string;
+  }
+
   const poolRef = db
-    .collection(doctorCollection(input.hospitalId, input.branchId, input.doctorId, "slots"))
+    .collection(doctorCollection(input.hospitalId, input.branchId, doctorId, "slots"))
     .doc(`${input.date}_${input.session}`);
   const appointmentRef = db.collection(branchCollection(input.hospitalId, input.branchId, "appointments")).doc();
 
@@ -75,7 +138,7 @@ export const bookAppointment = onCall(async (request) => {
     }
 
     const now = FieldValue.serverTimestamp();
-    const initialStatus = caller.role === "reception" ? "BOOKED" : "PENDING";
+    const initialStatus = "BOOKED";
 
     tx.update(poolRef, {
       [bucket === "online" ? "onlineBookedCount" : "walkInBookedCount"]: FieldValue.increment(1),
@@ -85,8 +148,8 @@ export const bookAppointment = onCall(async (request) => {
     tx.set(appointmentRef, {
       patientId: input.patientId,
       patientName: patientSnap.data()?.name ?? "",
-      doctorId: input.doctorId,
-      departmentId: input.departmentId,
+      doctorId,
+      departmentId,
       type: "normal",
       priority: 0,
       date: input.date,
@@ -127,25 +190,44 @@ export const bookAppointment = onCall(async (request) => {
       entityType: "appointments",
       entityId: appointmentRef.id,
       before: null,
-      after: { patientId: input.patientId, doctorId: input.doctorId, status: initialStatus },
+      after: { patientId: input.patientId, doctorId, status: initialStatus },
       createdAt: now,
     });
 
     return { bucket, initialStatus };
   });
 
-  const finalStatus = caller.role === "reception" ? "BOOKED" : "PENDING";
   await sendNotification({
     userId: input.patientId,
     type: "appointmentConfirmation",
-    title: finalStatus === "BOOKED" ? "Appointment confirmed" : "Appointment requested",
-    body:
-      finalStatus === "BOOKED"
-        ? `Your ${SESSION_LABEL[input.session]} appointment on ${input.date} is confirmed.`
-        : `Your ${SESSION_LABEL[input.session]} appointment on ${input.date} is pending Office approval.`,
+    title: "Appointment confirmed",
+    body: `Your ${SESSION_LABEL[input.session]} appointment on ${input.date} is confirmed.`,
     hospitalId: input.hospitalId,
     relatedEntityId: appointmentRef.id,
   });
 
-  return BookAppointmentResponse.parse({ appointmentId: appointmentRef.id, status: finalStatus });
+  // Notify every Office user at this branch so bookings surface without
+  // them having to poll — one appointment can affect Office's plan for the
+  // whole department (see the consolidated bookings view).
+  const officeStaffSnap = await db
+    .collection("users")
+    .where("role", "==", "office")
+    .where("hospitalId", "==", input.hospitalId)
+    .where("branchId", "==", input.branchId)
+    .where("status", "==", "active")
+    .get();
+  await Promise.all(
+    officeStaffSnap.docs.map((staffDoc) =>
+      sendNotification({
+        userId: staffDoc.id,
+        type: "appointmentConfirmation",
+        title: "New booking",
+        body: `${patientSnap.data()?.name ?? "A patient"} booked ${SESSION_LABEL[input.session]} on ${input.date}.`,
+        hospitalId: input.hospitalId,
+        relatedEntityId: appointmentRef.id,
+      }),
+    ),
+  );
+
+  return BookAppointmentResponse.parse({ appointmentId: appointmentRef.id, status: "BOOKED" });
 });

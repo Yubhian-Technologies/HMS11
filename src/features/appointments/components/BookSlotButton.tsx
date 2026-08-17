@@ -6,24 +6,29 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { bookAppointment } from "../services/appointments";
 
+/**
+ * `doctorId` (Reception's own booking, staff can pick a doctor by name) and
+ * `departmentId` (patient booking — doctor-anonymous, auto-assigned server-
+ * side) are mutually exclusive per caller; pass exactly one.
+ */
 export function BookSlotButton({
   hospitalId,
   branchId,
   doctorId,
+  departmentId,
   date,
   session,
   patientId,
-  departmentId,
   label,
   redirectTo,
 }: {
   hospitalId: string;
   branchId: string;
-  doctorId: string;
+  doctorId?: string;
+  departmentId?: string;
   date: string;
   session: "morning" | "afternoon";
   patientId: string;
-  departmentId: string;
   label: string;
   redirectTo: string;
 }) {
@@ -33,10 +38,8 @@ export function BookSlotButton({
   function handleClick() {
     startTransition(async () => {
       try {
-        const result = await bookAppointment({ hospitalId, branchId, doctorId, date, session, patientId, departmentId });
-        toast.success(
-          result.status === "BOOKED" ? "Appointment booked." : "Appointment booked — pending Office approval.",
-        );
+        await bookAppointment({ hospitalId, branchId, doctorId, departmentId, date, session, patientId });
+        toast.success("Appointment booked.");
         router.push(redirectTo);
         router.refresh();
       } catch (err) {

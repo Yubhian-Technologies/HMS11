@@ -34,6 +34,10 @@ export const AVAILABILITY_WINDOWS = {
  */
 export interface DoctorSlot extends BaseDoc {
   doctorId: string;
+  /** Denormalized from doctors/{uid}.departmentId at creation time — lets
+   * a patient-facing department-wide query aggregate capacity across every
+   * doctor in a department without a doctor-by-doctor fan-out read. */
+  departmentId: string;
   date: string; // ISO date
   session: Session;
   totalCount: number;

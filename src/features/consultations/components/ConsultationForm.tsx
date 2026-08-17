@@ -35,6 +35,7 @@ export interface ConsultDraftInitial {
   clinicalNotes?: string;
   prescription?: PrescriptionItemForm[];
   labTestIds?: string[];
+  customLabTests?: string[];
   admissionRequested?: boolean;
 }
 
@@ -60,6 +61,7 @@ export function ConsultationForm({
   const [clinicalNotes, setClinicalNotes] = useState(initialDraft?.clinicalNotes ?? "");
   const [items, setItems] = useState<PrescriptionItemForm[]>(initialDraft?.prescription ?? []);
   const [selectedTestIds, setSelectedTestIds] = useState<string[]>(initialDraft?.labTestIds ?? []);
+  const [customTests, setCustomTests] = useState<string[]>(initialDraft?.customLabTests ?? []);
 
   const [admitEnabled, setAdmitEnabled] = useState(initialDraft?.admissionRequested ?? false);
 
@@ -104,6 +106,7 @@ export function ConsultationForm({
           clinicalNotes,
           prescription: items,
           labTestIds: selectedTestIds,
+          customLabTests: customTests,
           admissionRequested: admitEnabled,
           savedAt: serverTimestamp(),
         },
@@ -114,10 +117,20 @@ export function ConsultationForm({
     }, 1500);
     return () => clearTimeout(handle);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [diagnosis, clinicalNotes, items, selectedTestIds, admitEnabled, submitting]);
+  }, [diagnosis, clinicalNotes, items, selectedTestIds, customTests, admitEnabled, submitting]);
 
   function toggleTest(testId: string) {
     setSelectedTestIds((prev) => (prev.includes(testId) ? prev.filter((t) => t !== testId) : [...prev, testId]));
+  }
+
+  function addCustomTest() {
+    setCustomTests((prev) => [...prev, ""]);
+  }
+  function updateCustomTest(index: number, value: string) {
+    setCustomTests((prev) => prev.map((t, i) => (i === index ? value : t)));
+  }
+  function removeCustomTest(index: number) {
+    setCustomTests((prev) => prev.filter((_, i) => i !== index));
   }
 
   function addItem() {
@@ -145,6 +158,9 @@ export function ConsultationForm({
           ? items.map((it) => ({ ...it, durationDays: Number(it.durationDays) }))
           : undefined,
         labTestIds: selectedTestIds.length ? selectedTestIds : undefined,
+        customLabTests: customTests.some((t) => t.trim())
+          ? customTests.map((t) => t.trim()).filter(Boolean)
+          : undefined,
         admissionRequested: admitEnabled || undefined,
         followUp: followUpEnabled && followUpDate ? { scheduledDate: followUpDate } : undefined,
         certificate:
@@ -241,27 +257,52 @@ export function ConsultationForm({
       </Card>
 
       <Card>
-        <CardHeader>
+        <CardHeader className="flex-row items-center justify-between">
           <CardTitle className="text-base">Order Lab Tests</CardTitle>
+          <Button type="button" size="sm" variant="outline" onClick={addCustomTest}>
+            Add Item
+          </Button>
         </CardHeader>
-        <CardContent className="flex flex-wrap gap-2">
-          {labTests.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No lab tests in the catalog for this branch.</p>
-          ) : (
-            labTests.map((test) => (
-              <label
-                key={test.id}
-                className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm"
-              >
-                <input
-                  type="checkbox"
-                  checked={selectedTestIds.includes(test.id)}
-                  onChange={() => toggleTest(test.id)}
-                  className="size-4"
-                />
-                {test.name} ({test.price})
-              </label>
-            ))
+        <CardContent className="flex flex-col gap-3">
+          <div className="flex flex-wrap gap-2">
+            {labTests.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No lab tests in the catalog for this branch.</p>
+            ) : (
+              labTests.map((test) => (
+                <label
+                  key={test.id}
+                  className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm"
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedTestIds.includes(test.id)}
+                    onChange={() => toggleTest(test.id)}
+                    className="size-4"
+                  />
+                  {test.name} ({test.price})
+                </label>
+              ))
+            )}
+          </div>
+
+          {customTests.length > 0 && (
+            <div className="flex flex-col gap-2">
+              <p className="text-xs font-medium text-muted-foreground">
+                Not in the catalog — priced at 0, added as-is:
+              </p>
+              {customTests.map((name, i) => (
+                <div key={i} className="flex gap-1">
+                  <Input
+                    placeholder="Lab test name"
+                    value={name}
+                    onChange={(e) => updateCustomTest(i, e.target.value)}
+                  />
+                  <Button type="button" size="sm" variant="destructive" onClick={() => removeCustomTest(i)}>
+                    ×
+                  </Button>
+                </div>
+              ))}
+            </div>
           )}
         </CardContent>
       </Card>

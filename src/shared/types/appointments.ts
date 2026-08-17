@@ -92,6 +92,7 @@ export interface ConsultDraft {
   clinicalNotes?: string;
   prescription?: PrescriptionItem[];
   labTestIds?: string[];
+  customLabTests?: string[];
   admissionRequested?: boolean;
   savedAt: Timestamp;
 }

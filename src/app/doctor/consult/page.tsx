@@ -133,6 +133,7 @@ export default async function ConsultPage({
                   durationDays: String(item.durationDays),
                 })),
                 labTestIds: appointment.consultDraft.labTestIds,
+                customLabTests: appointment.consultDraft.customLabTests,
                 admissionRequested: appointment.consultDraft.admissionRequested,
               }
             : null

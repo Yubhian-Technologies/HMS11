@@ -4,12 +4,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getSession } from "@/lib/auth/require-role";
 import { rollingWindowDates, formatDateLabel } from "@/lib/rolling-window";
 import { listStaffByRole, listDoctorProfiles } from "@/features/staff/services/read";
-import { listDepartments } from "@/features/departments/services/read";
+import { listDepartments, listDepartmentReleaseStatuses } from "@/features/departments/services/read";
 import { listSlotsForBranchInRange } from "@/features/scheduling/services/read";
 import { CreateManualSlotDialog } from "@/features/scheduling/components/CreateManualSlotDialog";
 import { BulkProposeCapacityDialog } from "@/features/scheduling/components/BulkProposeCapacityDialog";
 import { BlockUnblockButton } from "@/features/scheduling/components/BlockUnblockButton";
 import { SlotPublishButton } from "@/features/scheduling/components/SlotPublishButton";
+import { DepartmentPublicReleaseToggle } from "@/features/departments/components/DepartmentPublicReleaseToggle";
 import type { SlotRecord } from "@/features/scheduling/services/read";
 
 const SESSION_LABEL: Record<string, string> = { morning: "Morning", afternoon: "Afternoon" };
@@ -28,11 +29,12 @@ export default async function OfficeSlotsPage() {
   const { hospitalId, branchId } = session;
 
   const dates = rollingWindowDates();
-  const [allDoctors, slots, departments, doctorProfiles] = await Promise.all([
+  const [allDoctors, slots, departments, doctorProfiles, departmentReleases] = await Promise.all([
     listStaffByRole(hospitalId, "doctor"),
     listSlotsForBranchInRange(hospitalId, branchId, dates),
     listDepartments(hospitalId),
     listDoctorProfiles(hospitalId, branchId),
+    listDepartmentReleaseStatuses(hospitalId, branchId),
   ]);
   const doctors = allDoctors.filter((d) => d.branchId === branchId);
   const doctorName = new Map(doctors.map((d) => [d.id, d.name]));
@@ -40,6 +42,29 @@ export default async function OfficeSlotsPage() {
 
   return (
     <div className="flex flex-col gap-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Public Release — per department</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-2">
+          {departmentReleases.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No active departments.</p>
+          ) : (
+            departmentReleases.map((d) => (
+              <div key={d.id} className="flex items-center justify-between rounded-md border border-border p-2">
+                <span className="text-sm text-foreground">{d.name}</span>
+                <DepartmentPublicReleaseToggle
+                  hospitalId={hospitalId}
+                  branchId={branchId}
+                  departmentId={d.id}
+                  publiclyBookable={d.publiclyBookable}
+                />
+              </div>
+            ))
+          )}
+        </CardContent>
+      </Card>
+
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold text-foreground">Slot Approval</h1>
         <div className="flex items-center gap-2">

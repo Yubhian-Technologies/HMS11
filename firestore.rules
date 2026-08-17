@@ -84,7 +84,12 @@ service cloud.firestore {
         || (isSignedIn() && request.auth.uid == uid)
         || (hasRole(['admin']) && isHospitalScoped(resource.data.hospitalId))
         || (hasRole(['office', 'reception', 'nurse', 'doctor', 'pharmacy', 'lab'])
-            && isBranchScoped(resource.data.hospitalId, resource.data.branchId));
+            && isBranchScoped(resource.data.hospitalId, resource.data.branchId))
+        // A patient needs a treating doctor's display name (e.g. their own
+        // appointments list) — name lives only on users/{uid}, never
+        // denormalized onto the appointment. Scoped to role=='doctor' only,
+        // not blanket patient-to-any-user read.
+        || (hasRole(['patient']) && resource.data.role == 'doctor');
 
       // Staff accounts are provisioned only by Admin, for their own hospital.
       allow create: if hasRole(['admin']) && isHospitalScoped(request.resource.data.hospitalId);
@@ -237,6 +242,17 @@ service cloud.firestore {
           allow delete: if false;
         }
 
+        // departmentReleases — Office's per-branch "release to public"
+        // toggle (setDepartmentPublicRelease). Doctor/nurse also read it so
+        // their own UI can reflect whether their department is currently
+        // taking public bookings.
+        match /departmentReleases/{departmentId} {
+          allow read: if isSuperAdmin()
+            || (hasRole(['admin']) && isHospitalScoped(hospitalId))
+            || (hasRole(['office', 'doctor', 'nurse']) && isBranchScoped(hospitalId, branchId));
+          allow write: if false; // setDepartmentPublicRelease only
+        }
+
         match /labTestMaster/{testId} {
           allow read: if isSuperAdmin()
             || (hasRole(['admin']) && isHospitalScoped(hospitalId))
@@ -247,7 +263,11 @@ service cloud.firestore {
           allow delete: if false;
         }
 
-        match /medicines/{medicineId} {
+        // medicineInventory — per-branch stock catalog (createMedicineInventoryItem/
+        // updateMedicineInventoryItem/setMedicineInventoryItemStatus). Restocking
+        // ledger entries are the medicineDispenses/medicineLogs collections below,
+        // not a separate subcollection here.
+        match /medicineInventory/{itemId} {
           allow read: if isSuperAdmin()
             || (hasRole(['admin']) && isHospitalScoped(hospitalId))
             || (hasRole(['pharmacy']) && isBranchScoped(hospitalId, branchId));
@@ -256,15 +276,6 @@ service cloud.firestore {
           allow update: if (hasRole(['admin']) && isHospitalScoped(hospitalId))
             || (hasRole(['pharmacy']) && isBranchScoped(hospitalId, branchId));
           allow delete: if false;
-
-          match /inventoryTransactions/{transactionId} {
-            allow read: if isSuperAdmin()
-              || (hasRole(['admin']) && isHospitalScoped(hospitalId))
-              || (hasRole(['pharmacy']) && isBranchScoped(hospitalId, branchId));
-            allow create: if hasRole(['pharmacy']) && isBranchScoped(hospitalId, branchId);
-            allow update: if false; // append-only ledger
-            allow delete: if false;
-          }
         }
 
         // appointments — the center of the system. Vitals, check-in, and
@@ -282,9 +293,11 @@ service cloud.firestore {
             || (hasRole(['reception', 'office']) && isBranchScoped(hospitalId, branchId));
 
           allow update: if (hasRole(['office']) && isBranchScoped(hospitalId, branchId))
-            || (hasRole(['nurse']) && isBranchScoped(hospitalId, branchId)
-                && resource.data.status == 'CHECKED_IN' && request.resource.data.status == 'VITALS_COMPLETED'
-                && onlyFieldsChanged(['vitals', 'status', 'updatedAt']))
+            || (hasRole(['reception']) && isBranchScoped(hospitalId, branchId)
+                && ((resource.data.status == 'BOOKED' && request.resource.data.status == 'CHECKED_IN'
+                     && onlyFieldsChanged(['checkIn', 'status', 'updatedAt']))
+                    || (resource.data.status == 'CHECKED_IN' && request.resource.data.status == 'VITALS_COMPLETED'
+                        && onlyFieldsChanged(['vitals', 'status', 'updatedAt']))))
             || (hasRole(['doctor']) && resource.data.doctorId == request.auth.uid
                 && ((request.resource.data.status == 'CONSULTING'
                      && onlyFieldsChanged(['status', 'updatedAt']))
@@ -443,6 +456,47 @@ service cloud.firestore {
       allow create: if hasRole(['patient']) && request.resource.data.patientId == request.auth.uid;
       allow update: if false; // append-only
       allow delete: if false;
+    }
+
+    // -------------------------------------------------------------------
+    // Collection-group: patient's own cross-hospital reads. Every nested
+    // rule above is declared as `match /collection/{id}`, which Firestore
+    // does NOT extend to a `collectionGroup()` query — that requires a
+    // separate `{path=**}` declaration. The client apps (mobile in
+    // particular — server code uses the Admin SDK, which bypasses rules
+    // entirely) query these via collectionGroup for a patient's own
+    // cross-branch history, so without this block every one of those reads
+    // is unconditionally permission-denied regardless of ownership.
+    // -------------------------------------------------------------------
+    match /{path=**}/appointments/{id} {
+      allow read: if isOwner(resource);
+    }
+    match /{path=**}/admissions/{id} {
+      allow read: if isOwner(resource);
+    }
+    match /{path=**}/prescriptions/{id} {
+      allow read: if isOwner(resource);
+    }
+    match /{path=**}/labOrders/{id} {
+      allow read: if isOwner(resource);
+    }
+    match /{path=**}/followUps/{id} {
+      allow read: if isOwner(resource);
+    }
+    match /{path=**}/medicalCertificates/{id} {
+      allow read: if isOwner(resource);
+    }
+    match /{path=**}/referrals/{id} {
+      allow read: if isOwner(resource);
+    }
+    match /{path=**}/medicineLogs/{id} {
+      allow read: if isOwner(resource);
+    }
+    // Doctor/nurse session self-lookup fallback (used when custom claims
+    // haven't propagated yet) — reads only their own doctor doc, not a
+    // platform-wide browse (that's listBookableDoctors, patient-facing).
+    match /{path=**}/doctors/{uid} {
+      allow read: if isSignedIn() && request.auth.uid == uid;
     }
 
     // -------------------------------------------------------------------

@@ -31,3 +31,14 @@ export const SetDepartmentStatusRequest = z
   })
   .strict();
 export type SetDepartmentStatusRequest = z.infer<typeof SetDepartmentStatusRequest>;
+
+/** office only, own branch — the "release to public" toggle for one department at that branch. */
+export const SetDepartmentPublicReleaseRequest = z
+  .object({
+    hospitalId: z.string().min(1),
+    branchId: z.string().min(1),
+    departmentId: z.string().min(1),
+    publiclyBookable: z.boolean(),
+  })
+  .strict();
+export type SetDepartmentPublicReleaseRequest = z.infer<typeof SetDepartmentPublicReleaseRequest>;

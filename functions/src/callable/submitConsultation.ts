@@ -55,7 +55,7 @@ export const submitConsultation = onCall(async (request) => {
     throw new HttpsError("failed-precondition", "Start the consultation before submitting it.");
   }
 
-  const labTests = input.labTestIds
+  const catalogTests = input.labTestIds
     ? await Promise.all(
         input.labTestIds.map(async (testId) => {
           const snap = await db
@@ -69,6 +69,7 @@ export const submitConsultation = onCall(async (request) => {
         }),
       )
     : [];
+  const customTestNames = input.customLabTests ?? [];
 
   if (input.referral?.toDoctorId) {
     const referredDoctorSnap = await db
@@ -82,9 +83,17 @@ export const submitConsultation = onCall(async (request) => {
   const prescriptionRef = input.prescription?.length
     ? db.collection(branchCollection(input.hospitalId, input.branchId, "prescriptions")).doc()
     : null;
-  const labOrderRefs = labTests.map(() =>
+  const labOrderRefs = [...catalogTests, ...customTestNames].map(() =>
     db.collection(branchCollection(input.hospitalId, input.branchId, "labOrders")).doc(),
   );
+  // Custom (non-catalog) tests use their own labOrder doc id as testId — a
+  // synthetic value guaranteed not to collide with a real labTestMaster
+  // entry, so generateInvoice's price lookup just finds nothing and prices
+  // it at 0 instead of erroring.
+  const labTests = [
+    ...catalogTests,
+    ...customTestNames.map((name, i) => ({ testId: labOrderRefs[catalogTests.length + i]!.id, name })),
+  ];
   const admissionRef = input.admissionRequested
     ? db.collection(branchCollection(input.hospitalId, input.branchId, "admissions")).doc()
     : null;

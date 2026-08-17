@@ -8,17 +8,31 @@ const SessionSchema = z.enum(["morning", "afternoon"]);
  * session) pool's counter; which bucket (online vs. walk-in-reserved) is
  * decided server-side by the caller's role, not the client.
  */
+/**
+ * `doctorId` and `departmentId` are both optional at the schema level
+ * because the two callers need opposite things: a patient never sees a
+ * doctor name and must book by department (auto-assigned to whichever
+ * doctor in that department has room — see bookAppointment.ts), while
+ * Reception is booking a walk-in who's standing at the counter and may ask
+ * for a specific doctor by name, so still picks one directly. The callable
+ * enforces which one is actually required per caller role; this schema
+ * only requires that at least one is present.
+ */
 export const BookAppointmentRequest = z
   .object({
     hospitalId: z.string().min(1),
     branchId: z.string().min(1),
-    doctorId: z.string().min(1),
+    doctorId: z.string().min(1).nullish(),
+    departmentId: z.string().min(1).nullish(),
     date: z.string().min(1),
     session: SessionSchema,
     patientId: z.string().min(1),
-    departmentId: z.string().min(1),
   })
-  .strict();
+  .strict()
+  .refine((v) => Boolean(v.doctorId) || Boolean(v.departmentId), {
+    message: "Either doctorId or departmentId is required.",
+    path: ["departmentId"],
+  });
 export type BookAppointmentRequest = z.infer<typeof BookAppointmentRequest>;
 
 export const BookAppointmentResponse = z.object({

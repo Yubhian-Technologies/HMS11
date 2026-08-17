@@ -29,6 +29,7 @@ export const createManualSlot = onCall(async (request) => {
   if (!doctorSnap.exists) {
     throw new HttpsError("not-found", "Doctor not found in this branch.");
   }
+  const departmentId = doctorSnap.data()!.departmentId as string;
 
   const slotsCollection = doctorCollection(input.hospitalId, input.branchId, input.doctorId, "slots");
   const poolRef = db.collection(slotsCollection).doc(`${input.date}_${input.session}`);
@@ -40,6 +41,7 @@ export const createManualSlot = onCall(async (request) => {
       docId: poolRef.id,
       data: {
         doctorId: input.doctorId,
+        departmentId,
         date: input.date,
         session: input.session,
         totalCount: input.count,

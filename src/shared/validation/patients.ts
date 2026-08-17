@@ -39,8 +39,20 @@ const PatientIntakeFields = {
  * that writes the actual profile and sets custom claims. Email is read
  * server-side from the caller's own auth token, never trusted from the
  * request body.
+ *
+ * Deliberately minimal — name only (product decision: no intake wizard at
+ * signup). The rest of PatientIntakeFields (age/gender/dob/address/
+ * bloodGroup/emergencyContact/medicalHistory/currentMedications/allergies)
+ * still exist on `PatientProfile` and still get collected — just later,
+ * via `updatePatientProfile` from the profile screen, not gated on
+ * account creation. `registerPatientProfile` writes neutral empty/default
+ * values for them so the doc still satisfies `PatientProfile`'s shape.
  */
-export const RegisterPatientProfileRequest = z.object(PatientIntakeFields).strict();
+export const RegisterPatientProfileRequest = z
+  .object({
+    name: z.string().min(1),
+  })
+  .strict();
 export type RegisterPatientProfileRequest = z.infer<typeof RegisterPatientProfileRequest>;
 
 export const RegisterPatientProfileResponse = z.object({ success: z.boolean() });

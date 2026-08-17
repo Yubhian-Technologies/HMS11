@@ -41,7 +41,7 @@ export const registerPatientProfile = onCall(async (request) => {
       role: "patient",
       name: input.name,
       email,
-      phone: input.phone,
+      phone: "",
       fcmTokens: [],
       status: "active",
       hospitalId: null,
@@ -51,21 +51,26 @@ export const registerPatientProfile = onCall(async (request) => {
       updatedAt: now,
     });
 
+    // Signup collects name only (product decision — no intake wizard at
+    // account creation). Everything below is a neutral placeholder the
+    // patient fills in for real later via updatePatientProfile from their
+    // profile screen; kept present (not omitted) so this doc still
+    // satisfies PatientProfile's shape for every other reader.
     tx.set(db.collection("patients").doc(auth.uid), {
       userId: auth.uid,
       name: input.name,
-      age: input.age,
-      gender: input.gender,
-      dob: input.dob,
-      phone: input.phone,
+      age: 0,
+      gender: "other",
+      dob: "",
+      phone: "",
       email,
-      address: input.address,
-      bloodGroup: input.bloodGroup,
-      emergencyContact: input.emergencyContact,
-      medicalHistory: input.medicalHistory,
-      currentMedications: input.currentMedications,
-      allergies: input.allergies,
-      insurance: input.insurance ?? null,
+      address: { line1: "", city: "", state: "", postalCode: "", country: "" },
+      bloodGroup: "",
+      emergencyContact: { name: "", relation: "", phone: "" },
+      medicalHistory: "",
+      currentMedications: "",
+      allergies: "",
+      insurance: null,
       hospitalId: null,
       branchId: null,
       status: "active",

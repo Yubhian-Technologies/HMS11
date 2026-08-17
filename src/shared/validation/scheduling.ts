@@ -114,4 +114,38 @@ export type BulkCreateManualSlotsRequest = z.infer<typeof BulkCreateManualSlotsR
 export const BulkCreateManualSlotsResponse = z.object({ slotIds: z.array(z.string()) });
 export type BulkCreateManualSlotsResponse = z.infer<typeof BulkCreateManualSlotsResponse>;
 
+/**
+ * Patient-facing, platform-wide department directory for booking — no
+ * request fields, caller identified from the verified token. Deliberately
+ * doctor-anonymous: a patient picks a department (defaulting to whatever
+ * department is flagged `isGeneral` — typically "General Medicine" — with
+ * every other released department offered as an optional specialization),
+ * never a specific doctor by name. The system auto-assigns within the
+ * chosen department at booking time (bookAppointment). Only departments
+ * Office has released at that branch (departmentReleases.publiclyBookable)
+ * are included, and only for (date, session) combinations where at least
+ * one doctor in that department has an approved slot with room.
+ *
+ * A patient has no rules-compliant Firestore read to discover any of this
+ * platform-wide (departments/doctors/slots reads are all hospital/branch-
+ * staff-scoped or ownership-scoped), so this callable (Admin SDK, bypasses
+ * rules) is the only way in — same reasoning as the doctor-based version
+ * this replaced.
+ */
+export const BookableDepartmentSlotSchema = z.object({
+  date: z.string(),
+  session: SessionSchema,
+  availableCount: z.number().int().nonnegative(),
+});
+export const BookableDepartmentSchema = z.object({
+  hospitalId: z.string(),
+  branchId: z.string(),
+  departmentId: z.string(),
+  departmentName: z.string(),
+  isGeneral: z.boolean(),
+  slots: z.array(BookableDepartmentSlotSchema),
+});
+export const ListBookableDepartmentsResponse = z.object({ departments: z.array(BookableDepartmentSchema) });
+export type ListBookableDepartmentsResponse = z.infer<typeof ListBookableDepartmentsResponse>;
+
 export { DEFAULT_CHECK_IN_CUTOFF_MINUTES };

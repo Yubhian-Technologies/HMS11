@@ -12,16 +12,31 @@ docs in order (01 → 19); later ones assume decisions made in earlier ones.
 
 ## Workspace layout
 
+**As of the 2026-08-17 entry below, this is a flat npm project, not a pnpm
+monorepo** — the "Refactor monorepo into standard Next.js app" commit moved
+everything out of `apps/web`/`packages/*` without updating this section (or
+`functions/`'s own dependency wiring — see that changelog entry for the
+breakage this caused and how it was fixed). Actual current layout:
+
 ```
-apps/web/        Next.js App Router UI (all roles)
-functions/        Firebase Cloud Functions
-packages/shared/  Types, zod validation, RBAC — imported by both apps/web and functions
-packages/shared-server/  writeWithAudit() — server-only, depends on firebase-admin
-docs/             Architecture/design documentation (read this before touching schema/RBAC)
+src/               Next.js App Router UI (all roles) — was apps/web/src
+src/shared/        Types, zod validation, RBAC — was packages/shared/src
+src/shared-server/ writeWithAudit() — was packages/shared-server/src
+functions/         Firebase Cloud Functions (own package.json, own npm install —
+                    resolves @hms/shared via a tsconfig path alias into ../src/shared,
+                    NOT an npm/pnpm workspace link; esbuild-bundled at deploy time,
+                    see functions/scripts/prepare-functions-deploy.mjs)
+docs/              Architecture/design documentation — treat as historical/aspirational,
+                    not authoritative; it was never updated for the flattening and
+                    disagrees with the code in several places. This file and the code
+                    win over docs/ on any conflict.
 firestore.rules / firestore.indexes.json / storage.rules
 ```
 
-Full rationale for this layout: `docs/11-folder-structure.md`.
+The `docs/11-folder-structure.md` rationale (and the numbered docs generally)
+describe the *old* `apps/web` + `packages/*` pnpm layout — read them for
+historical context on *why* a decision was made, not as a map of where things
+currently live.
 
 ## Core conventions (don't violate these without updating the docs too)
 
@@ -64,12 +79,198 @@ functions/scripts/seed-super-admin.mjs   — the only way a super_admin account 
 functions/scripts/seed-demo-data.mjs     — seeds one demo hospital with staff of every role + a patient mid-visit
 ```
 
-Run via `pnpm --filter functions seed:super-admin` / `seed:demo` (see each script's
-header comment for required env vars — both support pointing at the Firebase
-emulators via `FIRESTORE_EMULATOR_HOST`/`FIREBASE_AUTH_EMULATOR_HOST` instead of a
-real service account).
+Run via `npm --prefix functions run seed:super-admin` / `seed:demo` (not `pnpm
+--filter` — see Workspace layout above; there is no pnpm workspace to filter
+into anymore). See each script's header comment for required env vars — both
+support pointing at the Firebase emulators via
+`FIRESTORE_EMULATOR_HOST`/`FIREBASE_AUTH_EMULATOR_HOST` instead of a real
+service account.
 
 ## Changelog
+
+### 2026-08-17 — Firebase config repair, doctor-anonymous department booking, Reception consolidation
+
+A single long session covering three things: (1) a full audit of local-vs-cloud
+Firebase config that found the backend had been silently broken since the
+monorepo-flattening refactor, (2) a product-directed redesign of the booking
+flow, and (3) a role reassignment moving check-in + vitals to Reception. Also
+touches the sister Flutter app (`VTH/hms`) — see that repo's own CLAUDE.md
+changelog for its side of this.
+
+**Firebase config repair — found via a from-scratch audit, not a bug report:**
+- **`functions/` could not build or deploy at all.** The monorepo-flattening
+  commit moved `packages/shared`→`src/shared` and
+  `packages/shared-server`→`src/shared-server` for the web app, but
+  `functions/node_modules/@hms/*` were still symlinks to the now-deleted
+  `packages/*` — every callable failed `Cannot find module '@hms/shared'`.
+  Whatever was live in Cloud Functions was whatever last deployed *before*
+  that refactor. Fixed via a `tsconfig.json` path-alias pointing straight at
+  `../src/shared`/`../src/shared-server` (see Workspace layout above) instead
+  of reintroducing a workspace link; dropped the now-invalid
+  `"@hms/shared": "workspace:*"` deps and the leftover pnpm-era
+  `deploy`/`serve` scripts from `functions/package.json`.
+- **`firestore.rules` had zero `{path=**}` collection-group rules.** Every
+  nested rule (`match /appointments/{id}` etc.) only covers a `get()` on that
+  exact nested path — Firestore does *not* extend that to a
+  `collectionGroup()` query, which needs its own `{path=**}` declaration.
+  Every client-side collection-group read a patient does (their own
+  cross-branch appointments/prescriptions/labOrders/admissions/followUps/
+  medicalCertificates/referrals/medicineLogs) was unconditionally
+  permission-denied, always, for every patient — the actual cause behind a
+  string of "permission-denied"/"upcoming appointment won't load" reports.
+  Added the missing block (all scoped to `isOwner(resource)`, matching the
+  existing ownership pattern) plus a narrow `{path=**}/doctors/{uid}`
+  self-lookup rule for the doctor/nurse session's own claims-fallback path.
+- **`medicineInventory` collection was misnamed `medicines` in rules** — the
+  callables all write `medicineInventory`; the rules block gated a
+  collection nothing ever wrote to, so the real one silently fell through to
+  deny-all. Renamed (also dropped the imagined `inventoryTransactions`
+  sub-collection nothing writes either).
+- **Missing composite indexes**, each one a real callable throwing
+  `FAILED_PRECONDITION` in production on everyday actions, found by tracing
+  each flow rather than by trial and error: `checkInPatient`'s token-counter
+  query (`date` + `checkIn`), `nurse`/Reception's ward queue (`admissions`
+  `nurseId` + `status`), the doctor's prescriptions list
+  (`prescriptions` `doctorId` + `createdAt`), and two collection-group
+  field-overrides (`doctors` + `status`, `departmentReleases` +
+  `publiclyBookable`) needed for the new department-browsing callable below.
+- Cloud project (`project-h-1177a`) has ~24 orphaned indexes + 6 orphaned
+  field overrides left over from schema generations before the 2026-07-27
+  nested-hierarchy migration (`availabilityRequests`, `availabilityTemplates`,
+  `bedRequests`, `doctorMedicineOrders`, `labRequests`, `visits`) — confirmed
+  dead (zero code references), **not pruned** (index deploys are additive-only
+  by default; pruning needs an explicit `--force`, left for a deliberate call
+  rather than done inline).
+- Confirmed via `firebase auth:export` that a number of Auth accounts
+  (`*.demo@gmail.com`, `office11@gmail.com`, etc.) carry `hospitalId` claims
+  pointing at hospitals that don't exist in Firestore at all — pre-existing
+  breakage, not something this session's changes caused. Left alone except
+  where it intersected the account cleanup below.
+
+**Demo environment reset:**
+- Deleted the two non-`lifegood` hospitals (`City General Hospital (Demo)`,
+  `VISHNU HOSPITALS`) and everything nested under them — only **LIFE GOOD
+  HOSPITAL** (`365ODpdeioGaV0XEUNhD`, branch `s0za6OS85m5mDpRVRnv4`) remains.
+- Reset all existing lifegood staff (`admin`/`office`/`reception`/`nurse1`/
+  `nurse2`/`pharmacy`/`lab`/three doctors `@lifegood.com`) to a known password
+  and seeded 5 new patient accounts (`{name}.demo@lifegood.com`), each parked
+  at a different pipeline stage (booked / vitals-done-waiting-for-doctor /
+  consult-complete-with-pending-lab-and-rx / lab-report-ready /
+  prescription-dispensed) so every role's screen has real data to demo
+  against immediately.
+- Deleted the entire `patients` collection (was full of accounts from broken
+  provisioning states, no longer worth salvaging) — **only partially
+  followed through**: 2 of 4 orphaned `users/{uid}` docs were also deleted,
+  the other 2 (`guna23@gmail.com`, `patient1@bvrh.in`) were not (blocked
+  mid-cleanup, never retried), and none of the underlying Firebase **Auth**
+  accounts were touched at all — there's no Auth-user-delete path available
+  from a CLI session, only Firestore doc deletes.
+- Seeded an 8-item `labTestMaster` catalog for lifegood/its branch (CBC, ECG,
+  Blood Sugar, LFT, KFT, Urine Routine, X-Ray Chest, Lipid Profile) — it had
+  been completely empty, which is why the doctor's consult-form lab-test
+  picker rendered a title with nothing under it.
+
+**Doctor-anonymous department booking** (product-directed redesign, not a
+bug fix): a patient now books a **department**, never sees a doctor's name.
+- New `departmentReleases/{departmentId}` doc per branch
+  (`publiclyBookable: boolean`, new `setDepartmentPublicRelease` callable,
+  Office-only) — a department is bookable by a patient at a branch only when
+  this is explicitly released, independent of whether individual doctor
+  slots are `approved`. Surfaced as a per-department toggle at the top of
+  Office's Slots page.
+- `DoctorSlot` gained a denormalized `departmentId` (set by
+  `createManualSlot`/`bulkCreateManualSlots` from the doctor's own profile)
+  — **currently dead weight**: the aggregation below ended up looking up
+  each known doctor's slot directly rather than running a
+  collection-group query filtered by this field, so nothing actually reads
+  it yet. Either wire up that query or drop the field.
+- `listBookableDoctors` (this session's own earlier, now-superseded
+  addition) replaced by `listBookableDepartments`: returns every
+  publicly-released department platform-wide, "General Medicine" (if
+  released) flagged `isGeneral` for the client to lead with, every other
+  released department as an optional specialization, each with pooled
+  online capacity per (date, session) **summed across every doctor in that
+  department** for the rolling 3-day window.
+- `bookAppointment` now takes `departmentId` **or** `doctorId` (schema
+  enforces exactly one supplied), not always `doctorId`: a patient supplies
+  only `departmentId` and the callable auto-assigns to whichever doctor in
+  that department has the most remaining capacity for the requested
+  (date, session); Reception's own walk-in booking is unchanged — still
+  picks a specific doctor directly, since staff aren't meant to have names
+  hidden from them. Also now fans out a `sendNotification` to every active
+  Office user at the branch on every booking.
+- Office's Appointments page gained a "Today's Bookings — by Department"
+  consolidated summary card above the existing status tabs, and every row
+  now shows department name alongside doctor name.
+- **Known correctness gap, not yet fixed**: the doctor auto-assignment above
+  picks the best doctor via plain reads *before* the transaction that
+  actually claims a seat — if that specific doctor's pool loses a race to a
+  concurrent booking, the transaction correctly rejects, but the callable
+  just throws "fully booked" instead of retrying the next-best doctor in the
+  department. Under real concurrent load this means a department with
+  genuine remaining capacity can spuriously reject a booking. Needs a
+  retry-across-candidates loop inside (or wrapping) the transaction.
+- **Known scope trim**: patient-side waiting-list (`joinWaitingList`) was not
+  adapted to department-based booking — it's still doctor-scoped, and the
+  patient booking UI (both web and Flutter) no longer offers it at all when
+  a department is fully booked. Reception's own doctor-based booking still
+  has it.
+- No server-side guard against booking a past `date`, or against a patient
+  double-booking overlapping appointments — neither was validated before
+  this pass either, noting it as newly-relevant now that booking is a single
+  general-purpose callable rather than several narrower ones.
+
+**Reception role consolidation**: check-in and vitals moved from
+Office/Nurse (the 2026-08-15 assignment below) back onto Reception as one
+role owning the whole booked→queued front-desk handoff.
+- `checkInPatient` and `recordVitals` both now require caller role
+  `reception` (were `office` and `nurse` respectively). `permission-matrix.ts`
+  updated (`nurse` appointments access dropped from `RU` to `R`); rules'
+  `appointments` update clause swapped the old nurse-only vitals branch for a
+  reception branch covering both transitions
+  (`BOOKED→CHECKED_IN`/`CHECKED_IN→VITALS_COMPLETED`, each still field-locked
+  via `onlyFieldsChanged`).
+- Office's Appointments page lost its Check-In button; Reception's own page
+  (previously just a `/reception/book` redirect) is now the real dashboard —
+  **Today** (filterable by session: All/Morning/Afternoon, with live counts)
+  and **Upcoming** (rest of the rolling 3-day window, grouped by day), each
+  row offering Check-In or Record Vitals depending on current status. Nurse's
+  web `/nurse` route now redirects straight to `/nurse/ward-care` — vitals
+  was nurse's only other page.
+- **Known gap, not yet built**: no expiry/timeout path for a `CHECKED_IN`
+  appointment whose vitals never get recorded, or a `CONSULTING` one a
+  doctor never finishes — `expireStaleAppointments` only ever reclaims
+  still-`BOOKED` no-shows. Both queues can accumulate dead entries with no
+  way to close them out.
+
+**Consult form: custom lab tests.** `submitConsultation` gained
+`customLabTests: string[]` (free-text names) alongside the existing
+catalog-bound `labTestIds`, matching how `prescription` was already
+free-text, not catalog-bound — an "Add Item" entry point next to the
+existing lab-test picker in both the web `ConsultationForm` and the Flutter
+consult sheet. A custom order's `testId` is set to its own generated
+labOrder doc id (guaranteed not to collide with a real `labTestMaster`
+entry) rather than a shared magic string, so `generateInvoice`'s
+`labTestMaster` price lookup simply finds nothing and prices it at ₹0 — an
+accepted trade-off (a test outside the priced catalog has no price to bill),
+not a bug.
+
+**Verification status**: every change in this entry was verified via
+`tsc --noEmit` (functions and web) and a full `next build` after each
+batch, plus live smoke-testing of the new/changed Cloud Functions via
+temporary diagnostic `onRequest` endpoints (deployed, invoked once, deleted
+immediately after — never left in production). All backend changes are
+deployed to `project-h-1177a`. **No actual click-through browser/emulator
+testing was done** — same standing constraint as every prior entry (no Java
+runtime here for the Local Emulator Suite) — nothing in this entry has been
+seen working end-to-end through a real UI by the agent that wrote it.
+
+**Not done in this pass** — a broader edge-case pass (concurrency,
+input-size limits, App Check currently disabled project-wide, stale FCM
+token pruning, past-date/duplicate-booking guards, catalog-vs-custom
+lab-test-name dedup) was reasoned through but deliberately left
+unimplemented pending product prioritization; ask for the full list rather
+than assuming it's covered.
 
 ### 2026-08-15 — Phase A→D flow-consistency pass (capacity/booking/check-in/consultation)
 

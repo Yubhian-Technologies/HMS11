@@ -65,6 +65,8 @@ export { updatePatientProfile } from "./callable/updatePatientProfile";
 export { setPatientStatus } from "./callable/setPatientStatus";
 
 // Module 7 — Appointment Booking (docs/13-cloud-functions.md §13.3).
+export { listBookableDepartments } from "./callable/listBookableDepartments";
+export { setDepartmentPublicRelease } from "./callable/setDepartmentPublicRelease";
 export { bookAppointment } from "./callable/bookAppointment";
 export { createEmergencyAppointment } from "./callable/createEmergencyAppointment";
 export { setAppointmentStatus } from "./callable/setAppointmentStatus";
