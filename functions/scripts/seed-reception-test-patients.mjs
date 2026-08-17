@@ -15,14 +15,12 @@ import { getFirestore, FieldValue } from "firebase-admin/firestore";
 function loadEnvLocal() {
   const path = new URL("../../.env.local", import.meta.url);
   const text = readFileSync(path, "utf8");
-  for (const line of text.split("\n")) {
+  for (const line of text.split(/\r?\n/)) {
     const m = line.match(/^([A-Z_]+)=(.*)$/);
     if (m) process.env[m[1]] ??= m[2];
-    else if (line.trim()) console.error("DEBUG no match:", JSON.stringify(line));
   }
 }
 loadEnvLocal();
-console.error("DEBUG after load:", !!process.env.FIREBASE_PROJECT_ID, !!process.env.FIREBASE_CLIENT_EMAIL, !!process.env.FIREBASE_PRIVATE_KEY);
 
 const projectId = process.env.FIREBASE_PROJECT_ID;
 const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
