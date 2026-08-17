@@ -82,6 +82,7 @@ export default async function OfficeAppointmentsPage({
               size="sm"
               variant="outline"
               render={<Link href={`/office/appointments/reschedule?appointmentId=${appt.id}`} />}
+              nativeButton={false}
             >
               Reschedule
             </Button>

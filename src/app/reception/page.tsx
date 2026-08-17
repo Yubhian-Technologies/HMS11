@@ -20,7 +20,11 @@ export default async function ReceptionPage() {
 
   const dates = rollingWindowDates();
   const today = todayIsoClient();
-  const appointments = await listBranchAppointmentsForDates(hospitalId, branchId, dates);
+  const raw = await listBranchAppointmentsForDates(hospitalId, branchId, dates);
+  // Firestore Admin Timestamp instances aren't plain objects, so they can't
+  // cross the Server -> Client Component boundary (ReceptionQueue is
+  // "use client"); round-trip through JSON to strip them to plain data.
+  const appointments = JSON.parse(JSON.stringify(raw)) as typeof raw;
 
   // Reception's own working set — a rejected/cancelled/expired booking, or
   // one already past vitals (already handed to the doctor), has nothing

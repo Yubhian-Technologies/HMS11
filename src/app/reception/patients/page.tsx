@@ -45,6 +45,7 @@ export default async function ReceptionPatientsPage() {
                   size="sm"
                   variant="outline"
                   render={<Link href={`/reception/book?patientId=${patient.id}`} />}
+                  nativeButton={false}
                 >
                   Book Appointment
                 </Button>

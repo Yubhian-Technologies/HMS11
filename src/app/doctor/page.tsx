@@ -53,6 +53,7 @@ export default async function DoctorQueuePage() {
                     size="sm"
                     variant="outline"
                     render={<Link href={`/doctor/patient-details?appointmentId=${appt.id}`} />}
+                    nativeButton={false}
                   >
                     Patient Details
                   </Button>
@@ -60,6 +61,7 @@ export default async function DoctorQueuePage() {
                     size="sm"
                     variant="outline"
                     render={<Link href={`/doctor/admissions`} />}
+                    nativeButton={false}
                   >
                     Admissions
                   </Button>
@@ -67,14 +69,20 @@ export default async function DoctorQueuePage() {
                     size="sm"
                     variant="outline"
                     render={<Link href={`/doctor/prescriptions?appointmentId=${appt.id}`} />}
+                    nativeButton={false}
                   >
                     Prescriptions
                   </Button>
-                  <Button size="sm" variant="outline" render={<Link href={`/doctor/labs?appointmentId=${appt.id}`} />}>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    render={<Link href={`/doctor/labs?appointmentId=${appt.id}`} />}
+                    nativeButton={false}
+                  >
                     Labs
                   </Button>
                   {appt.status === "CONSULTING" ? (
-                    <Button size="sm" render={<Link href={`/doctor/consult?appointmentId=${appt.id}`} />}>
+                    <Button size="sm" render={<Link href={`/doctor/consult?appointmentId=${appt.id}`} />} nativeButton={false}>
                       Resume Consultation
                     </Button>
                   ) : (
