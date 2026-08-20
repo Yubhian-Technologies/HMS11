@@ -1,8 +1,11 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth/require-role";
+import { getAdminDb } from "@/server/firebase-admin";
 import { rollingWindowDates, formatDateLabel, todayIsoClient } from "@/lib/rolling-window";
 import { listBranchAppointmentsForDates } from "@/features/appointments/services/read";
 import { ReceptionQueue } from "@/features/reception/components/ReceptionQueue";
+
+export const dynamic = "force-dynamic";
 
 /**
  * Reception's landing page — the whole booked-to-queued front-desk handoff
@@ -26,25 +29,41 @@ export default async function ReceptionPage() {
   // "use client"); round-trip through JSON to strip them to plain data.
   const appointments = JSON.parse(JSON.stringify(raw)) as typeof raw;
 
-  // Reception's own working set — a rejected/cancelled/expired booking, or
-  // one already past vitals (already handed to the doctor), has nothing
-  // left for the front desk to do with it.
-  const active = appointments.filter((a) => a.status === "BOOKED" || a.status === "CHECKED_IN");
-  const todaysAppointments = active.filter((a) => a.date === today);
+  // Fetch doctors for Doctor-wise Queue view
+  const db = getAdminDb();
+  const doctorsSnap = await db
+    .collection(`hospitals/${hospitalId}/branches/${branchId}/doctors`)
+    .where("status", "==", "active")
+    .get();
+
+  const doctors = await Promise.all(
+    doctorsSnap.docs.map(async (doc) => {
+      const userDoc = await db.collection("users").doc(doc.id).get();
+      const userData = userDoc.data();
+      return {
+        id: doc.id,
+        name: userData?.name ?? "Doctor",
+        specialization: (doc.data()?.specialization as string | undefined) ?? "General",
+      };
+    }),
+  );
+
+  const todaysAppointments = appointments.filter((a) => a.date === today);
   const upcomingDays = dates
     .filter((d) => d !== today)
     .map((date, i) => ({
       date,
       label: formatDateLabel(date, i + 1),
-      appointments: active.filter((a) => a.date === date),
+      appointments: appointments.filter((a) => a.date === date),
     }));
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-xl font-semibold text-foreground">Reception</h1>
+      <h1 className="text-xl font-semibold text-foreground">Reception Desk</h1>
       <ReceptionQueue
         hospitalId={hospitalId}
         branchId={branchId}
+        doctors={doctors}
         todaysAppointments={todaysAppointments}
         upcomingDays={upcomingDays}
       />

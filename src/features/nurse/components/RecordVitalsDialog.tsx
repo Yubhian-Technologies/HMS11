@@ -98,7 +98,9 @@ export function RecordVitalsDialog({
         <form onSubmit={handleSubmit}>
           <DialogHeader>
             <DialogTitle>Vitals — {patientName}</DialogTitle>
-            <DialogDescription>Visible to the doctor immediately once saved.</DialogDescription>
+            <DialogDescription>
+              Vitals will be saved and the patient will be sent to the Doctor&apos;s Queue immediately.
+            </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-3 gap-4">
@@ -154,7 +156,7 @@ export function RecordVitalsDialog({
           </div>
           <DialogFooter>
             <Button type="submit" disabled={submitting}>
-              {submitting ? "Saving…" : "Save Vitals"}
+              {submitting ? "Saving & Sending…" : "Save & Send to Doctor"}
             </Button>
           </DialogFooter>
         </form>
