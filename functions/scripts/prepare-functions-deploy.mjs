@@ -19,7 +19,11 @@ const outDir = path.join(root, ".deploy");
 const outFile = path.join(outDir, "index.js");
 
 async function main() {
-  await rm(outDir, { recursive: true, force: true });
+  try {
+    await rm(outDir, { recursive: true, force: true });
+  } catch (err) {
+    // ignore busy lock on Windows
+  }
   await mkdir(outDir, { recursive: true });
 
   await build({

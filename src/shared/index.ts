@@ -22,6 +22,7 @@ export * from "./types/audit";
 
 export * from "./rbac/roles";
 export * from "./rbac/permission-matrix";
+export * from "./rbac/operations";
 export * from "./rbac/scope";
 
 export * from "./validation/users";

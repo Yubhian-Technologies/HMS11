@@ -71,13 +71,13 @@ export const PERMISSION_MATRIX: Record<ModuleName, ModulePermissions> = {
    * `appointments` absorbs the former standalone `vitals`/`consultations`
    * modules — both are embedded fields on the appointment document now
    * (docs/10-collections-schema.md §10.6), so there's nothing left for those
-   * two module rows to gate independently. Reception owns both check-in
-   * (checkInPatient) and vitals capture (recordVitals) — one front-desk
-   * role handling the whole booked-to-queued handoff, not split across
-   * Office/Nurse. Doctor's `RU` covers writing `consultationSummary`.
+   * two module rows to gate independently. Vitals entry is an entity granted
+   * to Reception AND Nurse (operations.ts "vitals.record"); check-in is
+   * Reception-only ("appointment.checkIn"). Doctor's `RU` covers writing
+   * `consultationSummary`.
    */
   appointments: {
-    super_admin: R, admin: R, office: CRUS, reception: CRU, nurse: R, doctor: RU, patient: CR,
+    super_admin: R, admin: R, office: CRUS, reception: CRU, nurse: RU, doctor: RU, patient: CR,
   },
   emergencyQueue: { super_admin: R, admin: R, office: CRU, reception: CRU, doctor: RU },
   prescriptions: { super_admin: R, admin: R, doctor: CR, pharmacy: RU, patient: R },
@@ -86,7 +86,7 @@ export const PERMISSION_MATRIX: Record<ModuleName, ModulePermissions> = {
     admin: R,
     doctor: CR,
     lab: ["read", "update", "statusChange"],
-    office: ["read", "update"],
+    office: ["read", "update", "statusChange"],
     patient: R,
   },
   labReports: { super_admin: R, admin: R, doctor: R, lab: CR, patient: R },

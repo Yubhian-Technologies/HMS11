@@ -1,7 +1,7 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { UploadLabReportRequest, UploadLabReportResponse, branchCollection } from "@hms/shared";
-import { requireCallerRole } from "../services/callable-auth";
+import { requireOperation } from "../services/callable-auth";
 import { assertOwnHospital } from "../services/scope-checks";
 import { sendNotification } from "../notifications/sendNotification";
 
@@ -13,7 +13,7 @@ import { sendNotification } from "../notifications/sendNotification";
  * "reportUploaded", then notifies both the ordering doctor and the patient.
  */
 export const uploadLabReport = onCall(async (request) => {
-  const caller = requireCallerRole(request, ["lab"]);
+  const caller = requireOperation(request, "labOrder.uploadReport");
   const input = UploadLabReportRequest.parse(request.data);
   assertOwnHospital(caller, input.hospitalId);
   if (caller.branchId !== input.branchId) {

@@ -13,7 +13,14 @@ import { createAuthUserOrThrow } from "../services/auth-errors";
  */
 export const createDoctorAccount = onCall(async (request) => {
   const caller = requireCallerRole(request, ["admin"]);
-  const input = CreateDoctorAccountRequest.parse(request.data);
+
+  let input: CreateDoctorAccountRequest;
+  try {
+    input = CreateDoctorAccountRequest.parse(request.data);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Invalid request data.";
+    throw new HttpsError("invalid-argument", `Validation error: ${msg}`);
+  }
 
   if (caller.hospitalId !== input.hospitalId) {
     throw new HttpsError("permission-denied", "You can only create staff for your own hospital.");

@@ -60,35 +60,40 @@ async function main() {
   const branchId = branchSnap.docs[0].id;
 
   const today = todayIso();
-  const slotsSnap = await db
-    .collectionGroup("slots")
-    .where("hospitalId", "==", hospitalId)
-    .where("branchId", "==", branchId)
-    .where("date", "==", today)
-    .where("status", "==", "approved")
-    .get();
-  if (slotsSnap.empty) throw new Error(`No approved doctor slots for ${today} at this branch — nothing to book into.`);
 
-  // Each slot doc lives at .../doctors/{doctorId}/slots/{date}_{session}.
+  // Avoid a collection-group query (would need a new composite index in
+  // prod) — instead walk each active doctor's two known slot-doc ids for
+  // today directly, same lookup shape bookAppointment itself uses.
+  const doctorsSnap = await db
+    .collection(`hospitals/${hospitalId}/branches/${branchId}/doctors`)
+    .where("status", "==", "active")
+    .get();
+  if (doctorsSnap.empty) throw new Error("No active doctors found under this branch.");
+
+  const slotLookups = doctorsSnap.docs.flatMap((doc) =>
+    ["morning", "afternoon"].map((session) => ({
+      doctorId: doc.id,
+      departmentId: doc.data().departmentId ?? null,
+      session,
+      ref: db.doc(`hospitals/${hospitalId}/branches/${branchId}/doctors/${doc.id}/slots/${today}_${session}`),
+    })),
+  );
+  const slotSnaps = await Promise.all(slotLookups.map((s) => s.ref.get()));
+
   // Mirrors bookAppointment's own walk-in-first-then-online bucket logic
   // (these are walk-in-style test bookings, same as Reception's own path).
-  const slots = slotsSnap.docs.map((d) => {
-    const pool = d.data();
-    return {
-      ref: d.ref,
-      doctorId: d.ref.parent.parent.id,
-      session: pool.session,
-      departmentId: null, // filled in below from the doctor doc
-      walkInRemaining: Math.max(0, pool.walkInReserved - pool.walkInBookedCount),
-      onlineRemaining: Math.max(0, pool.totalCount - pool.walkInReserved - pool.onlineBookedCount),
-    };
-  });
-  const doctorIds = [...new Set(slots.map((s) => s.doctorId))];
-  const doctorDocs = await Promise.all(
-    doctorIds.map((id) => db.doc(`hospitals/${hospitalId}/branches/${branchId}/doctors/${id}`).get()),
-  );
-  const departmentByDoctor = Object.fromEntries(doctorDocs.map((d) => [d.id, d.data()?.departmentId ?? null]));
-  slots.forEach((s) => (s.departmentId = departmentByDoctor[s.doctorId]));
+  const slots = slotLookups
+    .map((s, i) => ({ ...s, pool: slotSnaps[i].data() }))
+    .filter((s) => s.pool && s.pool.status === "approved")
+    .map((s) => ({
+      ref: s.ref,
+      doctorId: s.doctorId,
+      departmentId: s.departmentId,
+      session: s.session,
+      walkInRemaining: Math.max(0, s.pool.walkInReserved - s.pool.walkInBookedCount),
+      onlineRemaining: Math.max(0, s.pool.totalCount - s.pool.walkInReserved - s.pool.onlineBookedCount),
+    }));
+  if (slots.length === 0) throw new Error(`No approved doctor slots for ${today} at this branch — nothing to book into.`);
 
   const now = FieldValue.serverTimestamp();
   const created = [];

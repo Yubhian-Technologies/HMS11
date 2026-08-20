@@ -10,17 +10,22 @@ import { createSession } from "../actions/session";
  * the client SDK on every request.
  */
 export async function login(input: unknown): Promise<{ role: Role }> {
-  const { email, password } = LoginRequest.parse(input);
-  const credential = await signInWithEmailAndPassword(auth, email, password);
-  const idTokenResult = await credential.user.getIdTokenResult(true);
-  const role = idTokenResult.claims.role as Role | undefined;
+  try {
+    const { email, password } = LoginRequest.parse(input);
+    const credential = await signInWithEmailAndPassword(auth, email, password);
+    const idTokenResult = await credential.user.getIdTokenResult(true);
+    const role = idTokenResult.claims.role as Role | undefined;
 
-  if (!role) {
-    throw new Error(
-      "No role assigned to this account yet. Contact your administrator.",
-    );
+    if (!role) {
+      throw new Error(
+        "No role assigned to this account yet. Contact your administrator.",
+      );
+    }
+
+    await createSession(idTokenResult.token);
+    return { role };
+  } catch (err) {
+    console.error("[Firebase Auth Login Error]", err);
+    throw err;
   }
-
-  await createSession(idTokenResult.token);
-  return { role };
 }

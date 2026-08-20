@@ -1,17 +1,16 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { getFirestore } from "firebase-admin/firestore";
-import { SetDepartmentPublicReleaseRequest, branchCollection, hospitalCollection } from "@hms/shared";
+import { SetDepartmentPublicReleaseRequest, branchCollection, doctorCollection, hospitalCollection } from "@hms/shared";
 import { writeWithAudit } from "@hms/shared-server";
 import { requireCallerRole } from "../services/callable-auth";
 import { assertOwnHospital } from "../services/scope-checks";
+import { addDays, todayIso } from "../services/datetime";
 
 /**
  * Office only, own branch — the "release to public" button per department
  * per branch. A department is bookable by a patient at this branch only
  * when this doc exists with `publiclyBookable: true` (see
- * listBookableDepartments) — independent of individual doctor slot
- * approval, so Office can hold a department back from public view even
- * after doctors have confirmed their capacity for the day.
+ * listBookableDepartments) — requiring at least one approved doctor slot.
  */
 export const setDepartmentPublicRelease = onCall(async (request) => {
   const caller = requireCallerRole(request, ["office"]);
@@ -28,6 +27,47 @@ export const setDepartmentPublicRelease = onCall(async (request) => {
   const deptSnap = await db.collection(hospitalCollection(hospitalId, "departments")).doc(departmentId).get();
   if (!deptSnap.exists) {
     throw new HttpsError("not-found", "Department not found.");
+  }
+
+  if (publiclyBookable) {
+    const doctorsSnap = await db
+      .collection(`hospitals/${hospitalId}/branches/${branchId}/doctors`)
+      .where("departmentId", "==", departmentId)
+      .where("status", "==", "active")
+      .get();
+
+    if (doctorsSnap.empty) {
+      throw new HttpsError(
+        "failed-precondition",
+        "Cannot release to public: No active doctors exist in this department.",
+      );
+    }
+
+    const dates = Array.from({ length: 3 }, (_, i) => addDays(todayIso(), i));
+    let hasApprovedSlots = false;
+
+    for (const docSnap of doctorsSnap.docs) {
+      for (const date of dates) {
+        for (const session of ["morning", "afternoon"] as const) {
+          const slotSnap = await db
+            .doc(`${doctorCollection(hospitalId, branchId, docSnap.id, "slots")}/${date}_${session}`)
+            .get();
+          if (slotSnap.exists && slotSnap.data()?.status === "approved") {
+            hasApprovedSlots = true;
+            break;
+          }
+        }
+        if (hasApprovedSlots) break;
+      }
+      if (hasApprovedSlots) break;
+    }
+
+    if (!hasApprovedSlots) {
+      throw new HttpsError(
+        "failed-precondition",
+        "Cannot release to public: No doctors in this department have approved slots.",
+      );
+    }
   }
 
   const collection = branchCollection(hospitalId, branchId, "departmentReleases");

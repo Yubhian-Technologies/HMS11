@@ -24,8 +24,15 @@ export function LoginForm() {
       router.push(roleHome(role));
       router.refresh();
     } catch (err) {
+      console.error("[Login Error]:", err);
+      const isNetworkError =
+        err && typeof err === "object" && "code" in err && err.code === "auth/network-request-failed";
       setError(
-        err instanceof Error ? err.message : "Unable to sign in. Check your credentials.",
+        isNetworkError
+          ? "Network error connecting to Firebase Auth. Please check your internet connection or disable any active VPN / AdBlocker."
+          : err instanceof Error
+            ? err.message
+            : "Unable to sign in. Check your credentials.",
       );
     } finally {
       setSubmitting(false);

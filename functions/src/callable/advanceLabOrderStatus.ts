@@ -2,7 +2,7 @@ import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { getFirestore } from "firebase-admin/firestore";
 import { AdvanceLabOrderStatusRequest, branchCollection } from "@hms/shared";
 import { writeWithAudit } from "@hms/shared-server";
-import { requireCallerRole } from "../services/callable-auth";
+import { requireOperation } from "../services/callable-auth";
 import { assertOwnHospital } from "../services/scope-checks";
 
 const SEQUENCE = ["pending", "sampleCollected", "processing", "completed", "verified"] as const;
@@ -13,7 +13,7 @@ const SEQUENCE = ["pending", "sampleCollected", "processing", "completed", "veri
  * "reportUploaded" is reached only via uploadLabReport, not here.
  */
 export const advanceLabOrderStatus = onCall(async (request) => {
-  const caller = requireCallerRole(request, ["lab"]);
+  const caller = requireOperation(request, "labOrder.advanceStatus");
   const { hospitalId, branchId, labOrderId, toStatus } = AdvanceLabOrderStatusRequest.parse(request.data);
   assertOwnHospital(caller, hospitalId);
   if (caller.branchId !== branchId) {

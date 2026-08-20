@@ -12,14 +12,14 @@ interface LineItem {
 }
 
 /**
- * FR-15.1. reception or admin, own branch. Generated on demand at
+ * FR-15.1. reception, office, or admin, own branch. Generated on demand at
  * checkout, aggregating whatever consultation/lab/pharmacy records exist
  * for the appointment at that moment — see docs/10-collections-schema.md
  * Invoice doc comment for why this isn't incremental, and why room charges
  * aren't auto-computed.
  */
 export const generateInvoice = onCall(async (request) => {
-  const caller = requireCallerRole(request, ["reception", "admin"]);
+  const caller = requireCallerRole(request, ["reception", "office", "admin"]);
   const input = GenerateInvoiceRequest.parse(request.data);
   assertOwnHospital(caller, input.hospitalId);
 

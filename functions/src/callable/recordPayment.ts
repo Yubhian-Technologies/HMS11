@@ -5,13 +5,13 @@ import { writeWithAudit } from "@hms/shared-server";
 import { requireCallerRole } from "../services/callable-auth";
 import { assertOwnHospital } from "../services/scope-checks";
 
-/** FR-15.2 / FR-15.3. reception or admin, own hospital — manual entry, no payment gateway. */
+/** FR-15.2 / FR-15.3. reception, office, or admin, own hospital — manual entry, no payment gateway. */
 export const recordPayment = onCall(async (request) => {
-  const caller = requireCallerRole(request, ["reception", "admin"]);
+  const caller = requireCallerRole(request, ["reception", "office", "admin"]);
   const input = RecordPaymentRequest.parse(request.data);
   assertOwnHospital(caller, input.hospitalId);
 
-  if (caller.role === "reception" && caller.branchId !== input.branchId) {
+  if ((caller.role === "reception" || caller.role === "office") && caller.branchId !== input.branchId) {
     throw new HttpsError("permission-denied", "You can only record payments in your own branch.");
   }
 

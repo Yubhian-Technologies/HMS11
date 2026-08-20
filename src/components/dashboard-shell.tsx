@@ -23,9 +23,9 @@ export function DashboardShell({ role, children }: { role: Role; children: React
     .sort((a, b) => b.length - a.length)[0];
 
   return (
-    <div className="flex min-h-screen bg-background">
-      <aside className="flex w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar">
-        <div className="flex items-center gap-2.5 px-5 py-5">
+    <div className="min-h-screen bg-background">
+      <aside className="fixed inset-y-0 left-0 z-30 flex h-screen w-64 flex-col border-r border-sidebar-border bg-sidebar">
+        <div className="flex shrink-0 items-center gap-2.5 px-5 py-5">
           <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm">
             <RoleIcon className="size-4.5" />
           </div>
@@ -34,7 +34,7 @@ export function DashboardShell({ role, children }: { role: Role; children: React
             <span className="text-xs text-muted-foreground">{ROLE_LABEL[role]}</span>
           </div>
         </div>
-        <nav className="flex flex-1 flex-col gap-0.5 px-3">
+        <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto px-3">
           {NAV_ITEMS[role].map((item) => {
             const active = Boolean(item.href) && item.href === activeHref;
             const Icon = item.icon;
@@ -66,14 +66,16 @@ export function DashboardShell({ role, children }: { role: Role; children: React
             );
           })}
         </nav>
+        <div className="mt-auto shrink-0 border-t border-sidebar-border p-3">
+          <LogoutButton className="w-full justify-start gap-2 text-sidebar-foreground" />
+        </div>
       </aside>
-      <div className="flex flex-1 flex-col">
-        <header className="flex items-center justify-between border-b border-border bg-card/80 px-6 py-3.5 backdrop-blur supports-backdrop-filter:bg-card/60">
+      <div className="flex min-h-screen flex-col pl-64">
+        <header className="sticky top-0 z-20 flex items-center justify-between border-b border-border bg-card/80 px-6 py-3.5 backdrop-blur supports-backdrop-filter:bg-card/60">
           <div className="flex items-center gap-2">
             <RoleIcon className="size-4 text-muted-foreground" />
             <p className="text-sm font-medium text-foreground">{ROLE_LABEL[role]} Dashboard</p>
           </div>
-          <LogoutButton />
         </header>
         <main className="flex-1 p-6">{children}</main>
       </div>

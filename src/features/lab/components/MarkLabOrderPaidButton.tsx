@@ -21,7 +21,7 @@ export function MarkLabOrderPaidButton({
   function act() {
     startTransition(async () => {
       try {
-        await markLabOrderPaid({ hospitalId, branchId, labOrderId });
+        await markLabOrderPaid({ hospitalId, branchId, labOrderId, paymentMethod: "cash" });
         toast.success("Marked paid — sent to the Lab dashboard.");
         router.refresh();
       } catch (err) {

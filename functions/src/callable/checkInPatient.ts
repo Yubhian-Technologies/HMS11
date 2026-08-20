@@ -1,23 +1,24 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { CheckInPatientRequest, CheckInPatientResponse, branchCollection } from "@hms/shared";
-import { requireCallerRole } from "../services/callable-auth";
+import { requireOperation } from "../services/callable-auth";
 import { assertOwnHospital } from "../services/scope-checks";
 
 /**
  * Reception only, own branch — Reception checks the patient in and sends
  * them into the department queue (also does vitals entry — recordVitals —
- * so the whole front-desk handoff to the doctor is one role's job). Token
- * is a simple sequential counter per branch+day — count of already-
- * checked-in-or-past appointments today, plus one. Good enough for a
- * single front desk's daily queue; not globally unique across branches
- * (never needs to be). Runs inside a transaction (re-checks `status` from
- * the transaction's own read, not a separate get()) so two concurrent
- * check-in attempts on the same appointment can't both succeed and
- * silently overwrite each other's token.
+ * so the whole front-desk handoff to the doctor is one role's job).
+ * Attendance is a Reception-owned operation; Office does not mark
+ * attendance. Token is a simple sequential counter per branch+day — count
+ * of already-checked-in-or-past appointments today, plus one. Good enough
+ * for a single front desk's daily queue; not globally unique across
+ * branches (never needs to be). Runs inside a transaction (re-checks
+ * `status` from the transaction's own read, not a separate get()) so two
+ * concurrent check-in attempts on the same appointment can't both succeed
+ * and silently overwrite each other's token.
  */
 export const checkInPatient = onCall(async (request) => {
-  const caller = requireCallerRole(request, ["reception"]);
+  const caller = requireOperation(request, "appointment.checkIn");
   const { hospitalId, branchId, appointmentId } = CheckInPatientRequest.parse(request.data);
   assertOwnHospital(caller, hospitalId);
 

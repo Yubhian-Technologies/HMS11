@@ -3,6 +3,7 @@ import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { SubmitConsultationRequest, SubmitConsultationResponse, branchCollection, doctorPath } from "@hms/shared";
 import { requireCallerRole } from "../services/callable-auth";
 import { assertOwnHospital } from "../services/scope-checks";
+import { sendNotification } from "../notifications/sendNotification";
 
 /**
  * doctor only, own appointment. Every decision a doctor makes from the
@@ -225,6 +226,16 @@ export const submitConsultation = onCall(async (request) => {
       createdAt: now,
     });
   });
+
+  if (labOrderRefs.length > 0) {
+    await sendNotification({
+      userId: appt.patientId,
+      type: "labOrderPaymentPending",
+      title: "Lab tests requested",
+      body: `${labOrderRefs.length} test${labOrderRefs.length === 1 ? "" : "s"} requested by your doctor — payment is pending at the front office.`,
+      hospitalId: input.hospitalId,
+    });
+  }
 
   return SubmitConsultationResponse.parse({
     appointmentId: input.appointmentId,

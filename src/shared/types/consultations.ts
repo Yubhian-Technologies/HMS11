@@ -31,7 +31,9 @@ export interface Prescription extends BaseDoc {
  * assigned by the doctor outside the consult flow (Doctor Labs module);
  * such orders start at "pendingPayment" and only enter the normal pipeline
  * once Office marks them paid (markLabOrderPaid flips "pendingPayment" ->
- * "pending").
+ * "pending"). `payment` is written by markLabOrderPaid: it records the
+ * mode of payment Office selected, so the Lab's "payment done" state is
+ * audited end to end.
  */
 export interface LabOrder extends BaseDoc {
   appointmentId: string;
@@ -47,6 +49,11 @@ export interface LabOrder extends BaseDoc {
     | "completed"
     | "verified"
     | "reportUploaded";
+  payment?: {
+    method: "cash" | "card" | "upi";
+    collectedBy: string;
+    collectedAt: Timestamp;
+  } | null;
 }
 
 export interface DischargeSummary {

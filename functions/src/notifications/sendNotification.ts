@@ -7,6 +7,8 @@ export type NotificationType =
   | "appointmentReminder"
   | "medicineReminder"
   | "labReportReady"
+  | "labOrderPaymentPending"
+  | "labOrderPaymentReceived"
   | "prescriptionReady"
   | "followUpReminder"
   | "emergencyUpdate"

@@ -8,6 +8,7 @@ import { AdvanceStatusButton } from "@/features/lab/components/AdvanceStatusButt
 import { UploadReportDialog } from "@/features/lab/components/UploadReportDialog";
 
 const COLUMN_LABEL: Record<string, string> = {
+  pendingPayment: "Payment Pending",
   pending: "Pending",
   sampleCollected: "Sample Collected",
   processing: "Processing",
@@ -47,7 +48,11 @@ export default async function LabPage() {
                     {order.status}
                   </Badge>
                   <div className="mt-2 flex flex-col gap-1">
-                    {status === "verified" ? (
+                    {status === "pendingPayment" ? (
+                      <Badge variant="warning" className="mt-1">
+                        Awaiting office payment
+                      </Badge>
+                    ) : status === "verified" ? (
                       <UploadReportDialog
                         hospitalId={hospitalId}
                         branchId={branchId}

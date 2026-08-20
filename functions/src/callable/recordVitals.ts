@@ -1,27 +1,28 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { RecordVitalsRequest, RecordVitalsResponse, branchCollection } from "@hms/shared";
-import { requireCallerRole } from "../services/callable-auth";
+import { requireOperation } from "../services/callable-auth";
 import { assertOwnHospital } from "../services/scope-checks";
 
 /**
- * Reception only, own branch — moved back onto Reception together with
- * check-in (checkInPatient): Reception is the one front-desk handoff that
- * gets a patient from "booked" into the department doctor's queue, vitals
- * included, rather than splitting that handoff across two roles. BMI is
- * always computed here from weight/height, never accepted from the client.
- * Writes directly onto `appointments/{id}.vitals` (embedded —
- * docs/10-collections-schema.md §10.6) instead of a standalone `vitals`
- * document; "Send to Doctor" is this same call, not a separate step — the
+ * Reception or Nurse, own branch — vitals entry is an entity whose
+ * permission the registry grants to both roles (operations.ts
+ * "vitals.record"), so whichever front-line role is available can capture
+ * them. Reception gets a patient from "booked" into the department queue
+ * (check-in + vitals as one front-desk handoff); Nurse may capture vitals
+ * too — the CHECKED_IN guard below means vitals can only be entered once,
+ * so the "if not already done by the other role" rule is enforced by state,
+ * not by role precedence. BMI is always computed here from weight/height,
+ * never accepted from the client. Writes directly onto
+ * `appointments/{id}.vitals` (embedded — docs/10-collections-schema.md
+ * §10.6); "Send to Doctor" is this same call, not a separate step — the
  * doctor's own real-time listener on this same appointment document sees
- * the new vitals + status the instant this commits (no separate "push to
- * doctor" step). Runs inside a transaction so two concurrent submissions
- * for the same appointment (double-click, or two front-desk sessions)
- * can't both pass the CHECKED_IN guard and silently overwrite each other's
- * vitals.
+ * the new vitals + status the instant this commits. Runs inside a
+ * transaction so two concurrent submissions can't both pass the CHECKED_IN
+ * guard and silently overwrite each other's vitals.
  */
 export const recordVitals = onCall(async (request) => {
-  const caller = requireCallerRole(request, ["reception"]);
+  const caller = requireOperation(request, "vitals.record");
   const input = RecordVitalsRequest.parse(request.data);
   assertOwnHospital(caller, input.hospitalId);
 

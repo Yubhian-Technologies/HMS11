@@ -1,8 +1,9 @@
 import { redirect } from "next/navigation";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getSession } from "@/lib/auth/require-role";
 import { listPendingPaymentLabOrders } from "@/features/lab/services/read";
-import { MarkLabOrderPaidButton } from "@/features/lab/components/MarkLabOrderPaidButton";
+import { CollectLabPaymentDialog } from "@/features/lab/components/CollectLabPaymentDialog";
 
 export default async function OfficeLabPaymentsPage() {
   const session = await getSession();
@@ -27,8 +28,18 @@ export default async function OfficeLabPaymentsPage() {
                 key={order.id}
                 className="flex items-center justify-between rounded-md border border-border p-3 text-sm"
               >
-                <span className="font-medium text-foreground">{order.testName}</span>
-                <MarkLabOrderPaidButton hospitalId={hospitalId} branchId={branchId} labOrderId={order.id} />
+                <div>
+                  <p className="font-medium text-foreground">{order.testName}</p>
+                  <Badge variant="warning" className="mt-1">
+                    Payment pending
+                  </Badge>
+                </div>
+                <CollectLabPaymentDialog
+                  hospitalId={hospitalId}
+                  branchId={branchId}
+                  labOrderId={order.id}
+                  testName={order.testName}
+                />
               </div>
             ))
           )}

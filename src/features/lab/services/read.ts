@@ -6,6 +6,7 @@ export type LabOrderRecord = LabOrder & { id: string };
 export type LabReportRecord = LabReport & { id: string };
 
 const PIPELINE_STATUSES = [
+  "pendingPayment",
   "pending",
   "sampleCollected",
   "processing",

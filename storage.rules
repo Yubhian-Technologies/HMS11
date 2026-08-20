@@ -27,6 +27,17 @@ service firebase.storage {
         && request.resource.contentType.matches('application/pdf|image/.*');
     }
 
+    // Doctor voice notes (mobile HMS dictation). Doctors may read any note
+    // within their own hospital and may write only to their own folder,
+    // size/type-limited to audio files (NFR-1.5).
+    match /voiceNotes/{hospitalId}/{doctorUid}/{fileName} {
+      allow read: if hasRole(['doctor']) && claim('hospitalId') == hospitalId;
+      allow write: if hasRole(['doctor']) && claim('hospitalId') == hospitalId
+        && doctorUid == request.auth.uid
+        && request.resource.size < 50 * 1024 * 1024
+        && request.resource.contentType.matches('audio/.*');
+    }
+
     // Not yet wired to a module — deny until their module ships:
     //   /certificates/{hospitalId}/{patientId}/{fileName}
     //   /profilePhotos/{uid}/{fileName}
