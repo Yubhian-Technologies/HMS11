@@ -69,7 +69,8 @@ export function ReceptionQueue({
     }
   }
 
-  function Row({ appt }: { appt: AppointmentRecord }) {
+  function Row({ appt, showDoctor = true }: { appt: AppointmentRecord; showDoctor?: boolean }) {
+    const assignedDoctor = doctors.find((d) => d.id === appt.doctorId);
     return (
       <div className="flex items-center justify-between rounded-md border border-border p-3 text-sm">
         <div className="flex flex-col gap-1">
@@ -79,6 +80,9 @@ export function ReceptionQueue({
             {appt.checkIn?.token ? <Badge variant="default">Token #{appt.checkIn.token}</Badge> : null}
           </div>
           <p className="text-xs text-muted-foreground">
+            {showDoctor && assignedDoctor ? (
+              <span className="font-semibold text-primary">Dr. {assignedDoctor.name} ({assignedDoctor.specialization}) · </span>
+            ) : null}
             {appt.session ? SESSION_LABEL[appt.session] : "—"} · Status: <StatusBadge status={appt.status} token={appt.checkIn?.token} />
           </p>
           {appt.vitals ? (
